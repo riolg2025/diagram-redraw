@@ -128,7 +128,8 @@ changes[]      += {from:"", to:"审批", by:"user", ...}
       "box": [100.0, 200.0, 160.0, 60.0],   // line 用 p1/p2 代替
       "fill": "DCE9F7",           // null = 透明
       "line": { "color": "2E75B6", "pt": 0.5, "dash": "solid" },
-      "text": { "runs": ["下单"], "font_pt": 8, "face": "微软雅黑", "align": "ctr" },
+      // lines = 段落（每个字符串是一段）。⚠️ 不是 DrawingML 的 "run"（段内文本块）
+      "text": { "lines": ["下单"], "font_pt": 8, "face": "微软雅黑", "align": "ctr" },
       "rot": 0,
       "z": 10,
       "provenance": "measured",

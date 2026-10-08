@@ -87,7 +87,7 @@
    "box": [100.0, 400.0, 200.0, 80.0],
    "fill": "DCE9F7",
    "line": {"color": "2E75B6", "pt": 0.5, "dash": "solid"},
-   "text": {"runs": ["测试环境"], "font_pt": 8.0, "face": "微软雅黑", "align": "ctr"},
+   "text": {"lines": ["测试环境"], "font_pt": 8.0, "color": "333333", "face": "微软雅黑", "align": "ctr"},
    "rot": 0, "z": 10,
    "provenance": "measured",
    "evidence": ["p:sp#12@xfrm"]
@@ -98,7 +98,7 @@
    "box": [400.0, 400.0, 200.0, 80.0],
    "fill": "DCE9F7",
    "line": {"color": "2E75B6", "pt": 0.5, "dash": "solid"},
-   "text": {"runs": ["制品库"], "font_pt": 8.0, "face": "微软雅黑", "align": "ctr"},
+   "text": {"lines": ["制品库"], "font_pt": 8.0, "color": "333333", "face": "微软雅黑", "align": "ctr"},
    "rot": 0, "z": 10,
    "provenance": "measured",
    "evidence": ["p:sp#13@xfrm"]
@@ -109,7 +109,7 @@
    "box": [700.0, 400.0, 200.0, 80.0],
    "fill": "DCE9F7",
    "line": {"color": "2E75B6", "pt": 0.5, "dash": "solid"},
-   "text": {"runs": ["预发布环境"], "font_pt": 8.0, "face": "微软雅黑", "align": "ctr"},
+   "text": {"lines": ["预发布环境"], "font_pt": 8.0, "color": "333333", "face": "微软雅黑", "align": "ctr"},
    "rot": 0, "z": 10,
    "provenance": "measured",
    "evidence": ["p:sp#14@xfrm"]
