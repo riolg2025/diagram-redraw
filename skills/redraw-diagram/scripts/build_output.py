@@ -84,10 +84,18 @@ def style_text(tf, lines, t, face):
         tf.margin_top = Emu(int(ins[1] / DPI * 914400)) if len(ins) > 1 else None
         tf.margin_right = Emu(int(ins[2] / DPI * 914400)) if len(ins) > 2 else None
         tf.margin_bottom = Emu(int(ins[3] / DPI * 914400)) if len(ins) > 3 else None
-    tf.vertical_anchor = ANCHOR.get(t.get("anchor") or "ctr", MSO_ANCHOR.MIDDLE)
+    tf.vertical_anchor = ANCHOR.get(t.get("anchor") or "t", MSO_ANCHOR.TOP)
     for i, ln in enumerate(lines):
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
         p.alignment = ALIGN.get(t.get("align") or "ctr", PP_ALIGN.CENTER)
+        # 行距 / 段前距：原图是 120% 行距，不写就按 100% 渲染，整块文字会挪位
+        pPr = p._pPr if p._pPr is not None else p._p.get_or_add_pPr()
+        if t.get("lnspc"):
+            e = etree.SubElement(pPr, A + 'lnSpc')
+            etree.SubElement(e, A + 'spcPct').set('val', str(int(t["lnspc"])))
+        if t.get("spc_before") is not None:
+            e = etree.SubElement(pPr, A + 'spcBef')
+            etree.SubElement(e, A + 'spcPts').set('val', str(int(t["spc_before"])))
         run = p.add_run()
         run.text = ln
         if t.get("font_pt"):
@@ -105,19 +113,24 @@ def style_text(tf, lines, t, face):
                 e.set(k, v)
 
 
-def set_arrow(cn, arrow):
+def set_arrow(cn, arrow, atype="arrow"):
+    """★ 箭头类型要用**原件的**。
+
+    硬编码 type="triangle" 实测是个坑：原图是 type="arrow"（细长箭头），
+    改成 triangle（实心三角）后**头部明显大一圈**。
+    而且原图没写 w / len（用默认），我们显式写 med 也会让它更大。
+    """
     if arrow not in ("end", "both"):
         return
     ln = cn.line._get_or_add_ln()
     for tag in ("headEnd", "tailEnd"):
         for e in ln.findall(A + tag):
             ln.remove(e)
-    for want, tag in ((arrow == "both", "headEnd"), (True, "tailEnd")):
-        if want:
-            t = etree.SubElement(ln, A + tag)
-            t.set("type", "triangle")
-            t.set("w", "med")
-            t.set("len", "med")
+    t = (atype or "arrow")
+    if t and t != "none":
+        if arrow == "both":
+            etree.SubElement(ln, A + 'headEnd').set("type", t)
+        etree.SubElement(ln, A + 'tailEnd').set("type", t)
 
 
 def apply_line(obj, ln):
@@ -126,6 +139,12 @@ def apply_line(obj, ln):
         obj.line.fill.background()
         return
     obj.line.color.rgb = RGBColor.from_string(ln["color"])
+    # 透明度：原图是 alpha=91%，不写就是 100%（实测线会更"实"）
+    a = ln.get("alpha")
+    if a is not None and int(a) < 100000:
+        clr = obj.line.color._xFill.find(A + 'srgbClr')
+        if clr is not None:
+            etree.SubElement(clr, A + 'alpha').set('val', str(int(a)))
     obj.line.width = Pt(ln.get("pt", 0.75))
     if ln.get("dash") and ln["dash"] != "solid":
         obj.line.dash_style = DASH.get(ln["dash"], MSO_LINE_DASH_STYLE.DASH)
@@ -164,7 +183,7 @@ def build_pptx(spec, path):
             set_prst(cn, it.get("prst"))
             stamp(cn)
             apply_line(cn, it.get("line"))
-            set_arrow(cn, it.get("arrow"))
+            set_arrow(cn, it.get("arrow"), it.get("arrow_type") or "arrow")
             continue
 
         # ---- 图片 ----

@@ -102,6 +102,8 @@ def layout_of(obs, for_id, lid):
         it["line"] = {"color": ln["color"],
                       "pt": ln.get("pt", 0.75),
                       "dash": ln.get("dash") or "solid"}
+        if ln.get("alpha") is not None:
+            it["line"]["alpha"] = ln["alpha"]
         if ln.get("src") == "sampled":
             prov = "measured"
     if kind == "arrow" and fl.get("color"):
@@ -114,6 +116,8 @@ def layout_of(obs, for_id, lid):
     if txt:
         fg = (obs.get("fg") or {})
         f = obs.get("font") or {}
+        ins = obs.get("insets") or {}
+        par = obs.get("para") or {}
         it["text"] = {
             "lines": txt.split("\n"),
             "font_pt": f.get("pt") or 10.0,
@@ -121,6 +125,17 @@ def layout_of(obs, for_id, lid):
             "align": "l" if kind == "text" else "ctr",
             "color": fg.get("color") or "333333",
         }
+        # ★ 排版属性必须传下去。漏了它们，文字会整体偏移、而且**换行位置会变**
+        #   （内边距丢了 → 可用宽度变小 → "虚拟机" 被提前折成两行）。
+        if ins:
+            it["text"]["insets"] = [ins.get("l", 15.0), ins.get("t", 7.5),
+                                    ins.get("r", 15.0), ins.get("b", 7.5)]
+            it["text"]["anchor"] = ins.get("anchor") or "t"
+            it["text"]["wrap"] = (ins.get("wrap") or "square") != "none"
+        if par.get("lnspc") is not None:
+            it["text"]["lnspc"] = par["lnspc"]
+        if par.get("spc_before") is not None:
+            it["text"]["spc_before"] = par["spc_before"]
         if fg.get("src") == "sampled":
             prov = "measured"
 
@@ -135,7 +150,9 @@ def line_item(c, for_id, lid):
     it["kind"] = "line"
     it["p1"], it["p2"] = c["p1"], c["p2"]
     it.pop("box", None)
-    it["arrow"] = "end"
+    it["arrow"] = c.get("arrow") or "end"
+    if c.get("arrow_type"):
+        it["arrow_type"] = c["arrow_type"]
     # ★ 保留原件连接符的预设几何。
     #   不保留的话，bentConnector2/3（折线）会被当成两点直线 —— 拐弯丢掉，斜穿。
     if c.get("prst"):

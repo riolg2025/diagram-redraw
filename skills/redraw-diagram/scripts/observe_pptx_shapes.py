@@ -105,29 +105,50 @@ def cnv_name(el):
 
 
 def ln_props(el):
-    """线条：宽度、虚线、**XML 里的显式颜色**（没写就是 None，表示继承主题）。"""
+    """线条：宽度、虚线、**XML 里的显式颜色**（没写就是 None，表示继承主题）。
+
+    还读两样实测踩过的东西：
+      alpha —— 原图是 91% 不透明度，不读就写成 100%，线会更"实"
+      arrow —— 箭头**形状**（arrow / triangle / stealth…）。实测原图是 "arrow"
+               （细长），硬编码成 "triangle"（实心三角）后头部明显大一圈。
+    """
     ln = _first(el, A + 'ln')
+    base = {"pt": 0.75, "dash": "solid", "color": None, "src": "default",
+            "alpha": None, "arrow": None}
     if ln is None:
-        return {"pt": 0.75, "dash": "solid", "color": None, "src": "default"}
+        return base
     w = int(ln.get('w')) if ln.get('w') else 9525
     pd = ln.find(A + 'prstDash')
     dash = pd.get('val') if pd is not None else 'solid'
+    te = ln.find(A + 'tailEnd')
+    he = ln.find(A + 'headEnd')
+    arrow = None
+    if te is not None and te.get('type') not in (None, 'none'):
+        arrow = "both" if (he is not None
+                           and he.get('type') not in (None, 'none')) else "end"
+    base.update({"pt": round(w / 12700.0, 3), "dash": dash, "arrow": arrow})
+    if te is not None and te.get('type'):
+        base["arrow_type"] = te.get('type')
     if ln.find(A + 'noFill') is not None:
-        return {"pt": round(w / 12700.0, 3), "dash": dash, "color": None,
-                "src": "nofill"}
-    col = None
+        base["src"] = "nofill"
+        return base
     sf = ln.find(A + 'solidFill')
     if sf is not None:
         c = sf.find(A + 'srgbClr')
         if c is not None:
-            col = c.get('val')
-        elif sf.find(A + 'schemeClr') is not None:
-            # ★ 主题色只能在渲染图上看到长什么样。这里如实记下"它是个主题色"。
-            return {"pt": round(w / 12700.0, 3), "dash": dash, "color": None,
-                    "src": "scheme",
-                    "scheme": sf.find(A + 'schemeClr').get('val')}
-    return {"pt": round(w / 12700.0, 3), "dash": dash, "color": col,
-            "src": "xml" if col else "unset"}
+            base["color"] = c.get('val')
+            base["src"] = "xml"
+            al = c.find(A + 'alpha')
+            if al is not None and al.get('val'):
+                base["alpha"] = int(al.get('val'))
+            return base
+        sc = sf.find(A + 'schemeClr')
+        if sc is not None:
+            base["src"] = "scheme"
+            base["scheme"] = sc.get('val')
+            return base
+    base["src"] = "unset"
+    return base
 
 
 def fill_of(el):
@@ -215,6 +236,36 @@ def text_color_sample(img, box, fill_hex, tol=110):
         if sum(abs(a - b) for a, b in zip(px, fill)) > tol:
             return "%02X%02X%02X" % px
     return None
+
+
+def para_of(el):
+    """段落级排版：行距 lnSpc、段前 / 段后距。
+
+    ★ 实测漏了它的后果：原图文字卡是 lnSpc=120000（120% 行距），
+      不读就按默认 100% 渲染 —— **整块文字的位置就不一样了**。
+    """
+    tb = _first(el, P + 'txBody')
+    if tb is None:
+        return {}
+    out = {}
+    for tag, key in (('lnSpc', 'lnspc'), ('spcBef', 'spc_before'),
+                     ('spcAft', 'spc_after')):
+        for p in tb.iter(A + 'p'):
+            pPr = p.find(A + 'pPr')
+            if pPr is None:
+                continue
+            e = pPr.find(A + tag)
+            if e is None or len(e) == 0:
+                continue
+            v = e[0]
+            if v.get('val') is not None:
+                out[key] = int(v.get('val'))
+            elif v.get('pts') is not None:
+                out[key] = int(v.get('pts'))
+            break
+        else:
+            continue
+    return out
 
 
 def insets_of(el):
@@ -406,7 +457,7 @@ def main():
             shapes.append(dict(base, kind=shape_kind,
                                fill=fl, line=ln,
                                font=font_of(el), insets=insets_of(el),
-                               fg=fg))
+                               para=para_of(el), fg=fg))
 
     walk(slide.shapes, GroupCtx((0, 0), (1.0, 1.0), (0, 0)), [])
 
