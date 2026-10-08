@@ -159,6 +159,9 @@ def build_pptx(spec, path):
             p1, p2 = it["p1"], it["p2"]
             cn = sl.shapes.add_connector(MSO_CONNECTOR.STRAIGHT,
                                          IN(p1[0]), IN(p1[1]), IN(p2[0]), IN(p2[1]))
+            # ★ 折线要保留原件的预设几何（bentConnector2/3…），
+            #   否则一律画成两点直线，拐弯全丢。
+            set_prst(cn, it.get("prst"))
             stamp(cn)
             apply_line(cn, it.get("line"))
             set_arrow(cn, it.get("arrow"))

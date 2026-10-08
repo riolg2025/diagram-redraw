@@ -59,6 +59,20 @@ def _first(el, tag):
     return None
 
 
+def _first_local(el, local):
+    """按**元素名**找，不管命名空间。
+
+    ★ 为什么不能写死命名空间：`<p:spPr>` 在 **presentationml** 里，
+      而它的孩子 `<a:solidFill>` 在 **drawingml** 里。
+      写成 `a:spPr` 就永远找不到 —— 后果是**所有形状的填充都读不到**，
+      重画出来底色全丢，而且不报错。
+    """
+    for e in el.iter():
+        if e.tag.rsplit('}', 1)[-1] == local:
+            return e
+    return None
+
+
 def prst_of(el):
     g = _first(el, A + 'prstGeom')
     return (g.get('prst') or '') if g is not None else ''
@@ -118,7 +132,7 @@ def ln_props(el):
 
 def fill_of(el):
     """填充：显式色 / 主题色 / 无色 / 没写。"""
-    sp = _first(el, A + 'spPr')
+    sp = _first_local(el, 'spPr')      # ★ p:spPr，不是 a:spPr
     if sp is None:
         return {"color": None, "src": "nospPr"}
     if sp.find(A + 'noFill') is not None:
@@ -151,6 +165,56 @@ def font_of(el):
             face = e.get('typeface')
             break
     return {"pt": pt, "face": face}
+
+
+def text_color_of(el):
+    """文字颜色，**先从 XML 读**。
+
+    ★ 规矩和线条一样：**XML 里显式写了就用它，采样只是渲染的近似。**
+      漏了这条的后果实测过：蓝底白字的框，用"框内最深像素"去采，
+      采到的是**蓝底本身** → 文字被写成背景色 → **整段字看不见**。
+    """
+    tb = _first(el, P + 'txBody')
+    if tb is None:
+        return {"color": None, "src": "none"}
+    for tag in ('rPr', 'defRPr'):
+        for rPr in tb.iter(A + tag):
+            sf = rPr.find(A + 'solidFill')
+            if sf is None:
+                continue
+            c = sf.find(A + 'srgbClr')
+            if c is not None:
+                return {"color": c.get('val'), "src": "xml"}
+            s = sf.find(A + 'schemeClr')
+            if s is not None:
+                return {"color": None, "src": "scheme", "scheme": s.get('val')}
+    return {"color": None, "src": "unset"}
+
+
+def text_color_sample(img, box, fill_hex, tol=110):
+    """兜底：从渲染图里找文字色。
+
+    不能取"最深像素" —— 白字在深底上会被采成底色。
+    改成：**框内出现最多的那个"和填充色明显不同"的颜色**。
+    文字像素数仅次于底色，所以这条稳。
+    """
+    from collections import Counter
+    x0, y0 = int(box[0]), int(box[1])
+    x1, y1 = int(box[0] + box[2]), int(box[1] + box[3])
+    cnt = Counter()
+    for yy in range(y0 + 2, y1 - 2):
+        for xx in range(x0 + 2, x1 - 2):
+            if 0 <= xx < img.width and 0 <= yy < img.height:
+                cnt[img.getpixel((xx, yy))] += 1
+    if not cnt:
+        return None
+    if not fill_hex:
+        return "%02X%02X%02X" % min(cnt, key=lambda p: sum(p))
+    fill = tuple(int(fill_hex[i:i + 2], 16) for i in (0, 2, 4))
+    for px, _n in cnt.most_common(60):
+        if sum(abs(a - b) for a, b in zip(px, fill)) > tol:
+            return "%02X%02X%02X" % px
+    return None
 
 
 def insets_of(el):
@@ -305,13 +369,15 @@ def main():
 
             # ---- 其余：形状 ----
             fl = fill_of(el)
-            if fl["color"] is None and fl["src"] in ("scheme", "unset") and ren is not None:
+            # 只要没拿到颜色（继承主题 / 没写），就从渲染图上采。
+            # 除了 nofill —— 那是**明确说没有填充**，不该给它硬采一个。
+            if fl["color"] is None and fl["src"] != "nofill" and ren is not None:
                 mf = mode_fill(ren, box)
                 if mf:
                     fl = {"color": mf, "src": "sampled"}
 
             ln = ln_props(el)
-            if ln.get("color") is None and ln.get("src") in ("scheme", "unset") \
+            if ln.get("color") is None and ln.get("src") != "nofill" \
                     and ren is not None:
                 cands = []
                 for k in range(1, 10):
@@ -323,9 +389,13 @@ def main():
                 if cands:
                     ln = dict(ln, color=min(cands, key=lum), src="sampled")
 
-            fg = None
-            if ren is not None and base["text"]:
-                fg = darkest(ren, box[0], box[1], box[0] + box[2], box[1] + box[3])
+            fg = {"color": None, "src": None}
+            if base["text"]:
+                fg = text_color_of(el)                      # ★ XML 优先
+                if fg["color"] is None and fg["src"] != "none" and ren is not None:
+                    sampled = text_color_sample(ren, box, fl.get("color"))
+                    if sampled:
+                        fg = {"color": sampled, "src": "sampled"}
 
             shape_kind = "text" if str(sh.shape_type).startswith("TEXT_BOX") else "shape"
             if base["prst"] in BRACE_PRSTS:
@@ -336,7 +406,7 @@ def main():
             shapes.append(dict(base, kind=shape_kind,
                                fill=fl, line=ln,
                                font=font_of(el), insets=insets_of(el),
-                               fg={"color": fg, "src": "sampled" if fg else None}))
+                               fg=fg))
 
     walk(slide.shapes, GroupCtx((0, 0), (1.0, 1.0), (0, 0)), [])
 
