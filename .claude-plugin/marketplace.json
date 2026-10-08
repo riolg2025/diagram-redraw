@@ -1,0 +1,15 @@
+{
+  "name": "diagram-redraw",
+  "owner": {
+    "name": "diagram-redraw contributors"
+  },
+  "plugins": [
+    {
+      "name": "redraw-diagram",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/redraw-diagram"],
+      "description": "把 PPT 里人类画的架构图/流程图重画成可编辑的形状和文字（PPTX）或矢量图（SVG）。v0.1 只覆盖原生矢量图。"
+    }
+  ]
+}

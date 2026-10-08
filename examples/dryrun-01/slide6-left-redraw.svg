@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1125" viewBox="0 0 2000 1125">
+<rect width="2000" height="1125" fill="#FFFFFF"/>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#1577C4"/></marker></defs>
+<rect x="39" y="798" width="275" height="242" fill="#F2F2F2" rx="8"/>
+<rect x="330" y="798" width="275" height="242" fill="#F2F2F2" rx="8"/>
+<rect x="622" y="798" width="275" height="242" fill="#F2F2F2" rx="8"/>
+<rect x="914" y="798" width="275" height="242" fill="#F2F2F2" rx="8"/>
+<rect x="173" y="580" width="878" height="94" fill="#37A76F" rx="10"/>
+<text x="176.5" y="840" font-family="微软雅黑, PingFang SC, sans-serif" font-size="22" fill="#E01B79" text-anchor="middle" font-weight="bold"><tspan x="176.5" dy="0">开发环境</tspan></text>
+<text x="467.5" y="840" font-family="微软雅黑, PingFang SC, sans-serif" font-size="22" fill="#E01B79" text-anchor="middle" font-weight="bold"><tspan x="467.5" dy="0">测试环境</tspan></text>
+<text x="759.5" y="840" font-family="微软雅黑, PingFang SC, sans-serif" font-size="22" fill="#E01B79" text-anchor="middle" font-weight="bold"><tspan x="759.5" dy="0">预发布环境</tspan></text>
+<text x="1051.5" y="840" font-family="微软雅黑, PingFang SC, sans-serif" font-size="22" fill="#E01B79" text-anchor="middle" font-weight="bold"><tspan x="1051.5" dy="0">生产环境</tspan></text>
+<path d="M 275 224 L 498 224" fill="none" stroke="#1577C4" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M 271 511 L 498 511" fill="none" stroke="#1577C4" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M 931 511 L 691 511" fill="none" stroke="#1577C4" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M 595 266 L 595 470" fill="none" stroke="#1577C4" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M 595 552 L 595 594" fill="none" stroke="#1577C4" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M 176 627 L 176 798" fill="none" stroke="#1577C4" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M 468 657 L 468 798" fill="none" stroke="#1577C4" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M 760 653 L 760 798" fill="none" stroke="#1577C4" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M 1051 627 L 1051 798" fill="none" stroke="#1577C4" stroke-width="2" marker-end="url(#ah)"/>
+<path d="M 722 507 L 722 460 L 822 460 L 822 224 L 697 224" fill="none" stroke="#1577C4" stroke-width="2" marker-start="url(#ah)" marker-end="url(#ah)"/>
+<rect x="83" y="183" width="192" height="82" fill="#0B84CE" rx="10"/>
+<text x="179.0" y="222.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="19" fill="#FFFFFF" text-anchor="middle" font-weight="bold"><tspan x="179.0" dy="0">持续集成</tspan><tspan x="179.0" dy="21.849999999999998">（CI）</tspan></text>
+<rect x="498" y="184" width="192" height="82" fill="#0B84CE" rx="10"/>
+<text x="594.0" y="232.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="19" fill="#FFFFFF" text-anchor="middle" font-weight="bold"><tspan x="594.0" dy="0">制品库</tspan></text>
+<rect x="79" y="470" width="192" height="82" fill="#76B73B" rx="10"/>
+<text x="175.0" y="518.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="19" fill="#FFFFFF" text-anchor="middle" font-weight="bold"><tspan x="175.0" dy="0">CMDB</tspan></text>
+<rect x="498" y="470" width="192" height="82" fill="#0B84CE" rx="10"/>
+<text x="594.0" y="509.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="19" fill="#FFFFFF" text-anchor="middle" font-weight="bold"><tspan x="594.0" dy="0">应用部署</tspan><tspan x="594.0" dy="21.849999999999998">（CD）</tspan></text>
+<rect x="930" y="470" width="192" height="82" fill="#E01B79" rx="10"/>
+<text x="1026.0" y="518.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="19" fill="#FFFFFF" text-anchor="middle" font-weight="bold"><tspan x="1026.0" dy="0">ITSM</tspan></text>
+<rect x="194" y="625" width="137" height="42" fill="#2460EF" rx="10"/>
+<text x="262.5" y="653.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="15" fill="#FFFFFF" text-anchor="middle" font-weight="bold"><tspan x="262.5" dy="0">工具库</tspan></text>
+<rect x="373" y="623" width="137" height="42" fill="#2460EF" rx="10"/>
+<text x="441.5" y="651.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="15" fill="#FFFFFF" text-anchor="middle" font-weight="bold"><tspan x="441.5" dy="0">流程库</tspan></text>
+<rect x="545" y="624" width="137" height="42" fill="#2460EF" rx="10"/>
+<text x="613.5" y="652.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="15" fill="#FFFFFF" text-anchor="middle" font-weight="bold"><tspan x="613.5" dy="0">文件分发</tspan></text>
+<rect x="723" y="625" width="137" height="42" fill="#2460EF" rx="10"/>
+<text x="791.5" y="653.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="15" fill="#FFFFFF" text-anchor="middle" font-weight="bold"><tspan x="791.5" dy="0">定时调度</tspan></text>
+<rect x="899" y="625" width="137" height="42" fill="#2460EF" rx="10"/>
+<text x="967.5" y="653.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="15" fill="#FFFFFF" text-anchor="middle" font-weight="bold"><tspan x="967.5" dy="0">批量任务</tspan></text>
+<text x="612.0" y="606" font-family="微软雅黑, PingFang SC, sans-serif" font-size="16" fill="#FFFFFF" text-anchor="middle"><tspan x="612.0" dy="0">自动化运维平台能力通道</tspan></text>
+<rect x="308" y="193" width="153" height="64" fill="#F0F0F0" rx="5"/>
+<text x="384.5" y="223.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="11" fill="#595959" text-anchor="middle"><tspan x="384.5" dy="0">1.代码构建，上传</tspan><tspan x="384.5" dy="12.649999999999999">制品</tspan></text>
+<rect x="299" y="479" width="153" height="64" fill="#F0F0F0" rx="5"/>
+<text x="375.5" y="509.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="11" fill="#595959" text-anchor="middle"><tspan x="375.5" dy="0">2.获取应用环境信</tspan><tspan x="375.5" dy="12.649999999999999">息</tspan></text>
+<rect x="510" y="326" width="153" height="84" fill="#F0F0F0" rx="5"/>
+<text x="586.5" y="366.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="11" fill="#595959" text-anchor="middle"><tspan x="586.5" dy="0">3.获取应用制品信</tspan><tspan x="586.5" dy="12.649999999999999">息，制定部署策略</tspan></text>
+<rect x="759" y="322" width="127" height="84" fill="#F0F0F0" rx="5"/>
+<text x="822.5" y="362.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="11" fill="#595959" text-anchor="middle"><tspan x="822.5" dy="0">5.部署验证后，进</tspan><tspan x="822.5" dy="12.649999999999999">行制品晋级</tspan></text>
+<rect x="746" y="479" width="153" height="64" fill="#F0F0F0" rx="5"/>
+<text x="822.5" y="509.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="11" fill="#595959" text-anchor="middle"><tspan x="822.5" dy="0">通过部署工单自动发</tspan><tspan x="822.5" dy="12.649999999999999">布</tspan></text>
+<rect x="83" y="702" width="153" height="64" fill="#F0F0F0" rx="5"/>
+<text x="159.5" y="732.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="11" fill="#595959" text-anchor="middle"><tspan x="159.5" dy="0">4.部署到开发环境</tspan></text>
+<rect x="388" y="702" width="153" height="64" fill="#F0F0F0" rx="5"/>
+<text x="464.5" y="732.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="11" fill="#595959" text-anchor="middle"><tspan x="464.5" dy="0">6.部署到测试环境</tspan><tspan x="464.5" dy="12.649999999999999">，制品晋级</tspan></text>
+<rect x="658" y="702" width="153" height="64" fill="#F0F0F0" rx="5"/>
+<text x="734.5" y="732.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="11" fill="#595959" text-anchor="middle"><tspan x="734.5" dy="0">7.部署到预发布环</tspan><tspan x="734.5" dy="12.649999999999999">境，制品晋级</tspan></text>
+<rect x="970" y="702" width="153" height="64" fill="#F0F0F0" rx="5"/>
+<text x="1046.5" y="732.0" font-family="微软雅黑, PingFang SC, sans-serif" font-size="11" fill="#595959" text-anchor="middle"><tspan x="1046.5" dy="0">8.部署到生产环境</tspan></text>
+<rect x="104.5" y="895" width="34" height="58" fill="#FFFFFF" rx="2" stroke="#1F3864" stroke-width="1.6"/>
+<line x1="104.5" y1="909.5" x2="138.5" y2="909.5" stroke="#1F3864" stroke-width="1.2"/>
+<line x1="104.5" y1="924.0" x2="138.5" y2="924.0" stroke="#1F3864" stroke-width="1.2"/>
+<line x1="104.5" y1="938.5" x2="138.5" y2="938.5" stroke="#1F3864" stroke-width="1.2"/>
+<rect x="93.5" y="905" width="8" height="38" fill="#1F3864"/>
+<rect x="141.5" y="905" width="8" height="38" fill="#1F3864"/>
+<text x="121.5" y="985" font-family="微软雅黑, PingFang SC, sans-serif" font-size="13" fill="#1F3864" text-anchor="middle" font-weight="bold"><tspan x="121.5" dy="0">虚拟机</tspan><tspan x="121.5" dy="14.95">Agent</tspan></text>
+<rect x="215.5" y="895" width="34" height="58" fill="#FFFFFF" rx="2" stroke="#1F3864" stroke-width="1.6"/>
+<line x1="215.5" y1="909.5" x2="249.5" y2="909.5" stroke="#1F3864" stroke-width="1.2"/>
+<line x1="215.5" y1="924.0" x2="249.5" y2="924.0" stroke="#1F3864" stroke-width="1.2"/>
+<line x1="215.5" y1="938.5" x2="249.5" y2="938.5" stroke="#1F3864" stroke-width="1.2"/>
+<rect x="204.5" y="905" width="8" height="38" fill="#1F3864"/>
+<rect x="252.5" y="905" width="8" height="38" fill="#1F3864"/>
+<text x="232.5" y="985" font-family="微软雅黑, PingFang SC, sans-serif" font-size="13" fill="#1F3864" text-anchor="middle" font-weight="bold"><tspan x="232.5" dy="0">虚拟机</tspan><tspan x="232.5" dy="14.95">Agent</tspan></text>
+<rect x="397.5" y="895" width="34" height="58" fill="#FFFFFF" rx="2" stroke="#1F3864" stroke-width="1.6"/>
+<line x1="397.5" y1="909.5" x2="431.5" y2="909.5" stroke="#1F3864" stroke-width="1.2"/>
+<line x1="397.5" y1="924.0" x2="431.5" y2="924.0" stroke="#1F3864" stroke-width="1.2"/>
+<line x1="397.5" y1="938.5" x2="431.5" y2="938.5" stroke="#1F3864" stroke-width="1.2"/>
+<rect x="386.5" y="905" width="8" height="38" fill="#1F3864"/>
+<rect x="434.5" y="905" width="8" height="38" fill="#1F3864"/>
+<text x="414.5" y="985" font-family="微软雅黑, PingFang SC, sans-serif" font-size="13" fill="#1F3864" text-anchor="middle" font-weight="bold"><tspan x="414.5" dy="0">虚拟机</tspan><tspan x="414.5" dy="14.95">Agent</tspan></text>
+<rect x="508.5" y="895" width="34" height="58" fill="#FFFFFF" rx="2" stroke="#1F3864" stroke-width="1.6"/>
+<line x1="508.5" y1="909.5" x2="542.5" y2="909.5" stroke="#1F3864" stroke-width="1.2"/>
+<line x1="508.5" y1="924.0" x2="542.5" y2="924.0" stroke="#1F3864" stroke-width="1.2"/>
+<line x1="508.5" y1="938.5" x2="542.5" y2="938.5" stroke="#1F3864" stroke-width="1.2"/>
+<rect x="497.5" y="905" width="8" height="38" fill="#1F3864"/>
+<rect x="545.5" y="905" width="8" height="38" fill="#1F3864"/>
+<text x="525.5" y="985" font-family="微软雅黑, PingFang SC, sans-serif" font-size="13" fill="#1F3864" text-anchor="middle" font-weight="bold"><tspan x="525.5" dy="0">虚拟机</tspan><tspan x="525.5" dy="14.95">Agent</tspan></text>
+<rect x="679.5" y="895" width="34" height="58" fill="#FFFFFF" rx="2" stroke="#1F3864" stroke-width="1.6"/>
+<line x1="679.5" y1="909.5" x2="713.5" y2="909.5" stroke="#1F3864" stroke-width="1.2"/>
+<line x1="679.5" y1="924.0" x2="713.5" y2="924.0" stroke="#1F3864" stroke-width="1.2"/>
+<line x1="679.5" y1="938.5" x2="713.5" y2="938.5" stroke="#1F3864" stroke-width="1.2"/>
+<rect x="668.5" y="905" width="8" height="38" fill="#1F3864"/>
+<rect x="716.5" y="905" width="8" height="38" fill="#1F3864"/>
+<text x="696.5" y="985" font-family="微软雅黑, PingFang SC, sans-serif" font-size="13" fill="#1F3864" text-anchor="middle" font-weight="bold"><tspan x="696.5" dy="0">虚拟机</tspan><tspan x="696.5" dy="14.95">Agent</tspan></text>
+<rect x="789.5" y="895" width="34" height="58" fill="#FFFFFF" rx="2" stroke="#1F3864" stroke-width="1.6"/>
+<line x1="789.5" y1="909.5" x2="823.5" y2="909.5" stroke="#1F3864" stroke-width="1.2"/>
+<line x1="789.5" y1="924.0" x2="823.5" y2="924.0" stroke="#1F3864" stroke-width="1.2"/>
+<line x1="789.5" y1="938.5" x2="823.5" y2="938.5" stroke="#1F3864" stroke-width="1.2"/>
+<rect x="778.5" y="905" width="8" height="38" fill="#1F3864"/>
+<rect x="826.5" y="905" width="8" height="38" fill="#1F3864"/>
+<text x="806.5" y="985" font-family="微软雅黑, PingFang SC, sans-serif" font-size="13" fill="#1F3864" text-anchor="middle" font-weight="bold"><tspan x="806.5" dy="0">虚拟机</tspan><tspan x="806.5" dy="14.95">Agent</tspan></text>
+<rect x="979.5" y="895" width="34" height="58" fill="#FFFFFF" rx="2" stroke="#1F3864" stroke-width="1.6"/>
+<line x1="979.5" y1="909.5" x2="1013.5" y2="909.5" stroke="#1F3864" stroke-width="1.2"/>
+<line x1="979.5" y1="924.0" x2="1013.5" y2="924.0" stroke="#1F3864" stroke-width="1.2"/>
+<line x1="979.5" y1="938.5" x2="1013.5" y2="938.5" stroke="#1F3864" stroke-width="1.2"/>
+<rect x="968.5" y="905" width="8" height="38" fill="#1F3864"/>
+<rect x="1016.5" y="905" width="8" height="38" fill="#1F3864"/>
+<text x="996.5" y="985" font-family="微软雅黑, PingFang SC, sans-serif" font-size="13" fill="#1F3864" text-anchor="middle" font-weight="bold"><tspan x="996.5" dy="0">虚拟机</tspan><tspan x="996.5" dy="14.95">Agent</tspan></text>
+<rect x="1090.5" y="895" width="34" height="58" fill="#FFFFFF" rx="2" stroke="#1F3864" stroke-width="1.6"/>
+<line x1="1090.5" y1="909.5" x2="1124.5" y2="909.5" stroke="#1F3864" stroke-width="1.2"/>
+<line x1="1090.5" y1="924.0" x2="1124.5" y2="924.0" stroke="#1F3864" stroke-width="1.2"/>
+<line x1="1090.5" y1="938.5" x2="1124.5" y2="938.5" stroke="#1F3864" stroke-width="1.2"/>
+<rect x="1079.5" y="905" width="8" height="38" fill="#1F3864"/>
+<rect x="1127.5" y="905" width="8" height="38" fill="#1F3864"/>
+<text x="1107.5" y="985" font-family="微软雅黑, PingFang SC, sans-serif" font-size="13" fill="#1F3864" text-anchor="middle" font-weight="bold"><tspan x="1107.5" dy="0">虚拟机</tspan><tspan x="1107.5" dy="14.95">Agent</tspan></text>
+</svg>

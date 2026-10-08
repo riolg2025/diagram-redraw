@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="480" viewBox="0 0 260 120">
+  <rect width="260" height="120" fill="#ffffff"/>
+  <rect x="8" y="8" width="244" height="104" rx="12" fill="#1577C4"/>
+  <text x="28" y="72" font-family="PingFang SC, Heiti SC, sans-serif" font-size="30" fill="#ffffff">制品库</text>
+</svg>
