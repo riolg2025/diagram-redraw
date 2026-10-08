@@ -65,8 +65,11 @@ def main():
         w = d.textlength(label, font=f)
         d.text((x - w / 2, y - 10 * sc), label, fill=(255, 255, 255), font=f)
 
+    merged = {x["id"] for x in R["items"] if x.get("part_of")}
     counts = {}
     for it in R["items"]:
+        if it["id"] in merged:
+            continue                     # 已并入别人的，不重复计数
         role = it["role"]
         col = COLOR.get(role, (100, 100, 100))
         b = it.get("box")
@@ -98,8 +101,11 @@ def main():
         cn2 = {"node": "流程节点", "line": "关系", "container": "分区 / 容器",
                "label": "说明文字", "picture": "图片", "unsupported": "画不出来的"}
         order = ["container", "node", "label", "line", "picture", "unsupported"]
+        import hashlib
+        _h = hashlib.sha256(open(args.reading, "rb").read()).hexdigest()[:8]
         L = ["# 我读到的", "",
-             "> 原图：`%s`　标号图：`%s`" % (R["render"], os.path.basename(args.out)),
+             "> 源 `%s`，sha256 前 8 位 `%s`　图：`%s`"
+             % (os.path.basename(args.reading), _h, os.path.basename(args.out)),
              "> **这是「我读到的」，请你核对**：有没有漏的、有没有把两个当成一个的。", ""]
         for role in order:
             grp = [x for x in R["items"] if x["role"] == role]
@@ -123,8 +129,15 @@ def main():
           "label": "说明文字", "picture": "图片", "unsupported": "画不出来的"}
     print("=" * 64)
     print("这一页我读到的（%s）：" % os.path.basename(R["render"]))
-    print("   " + "   ".join("%s %d" % (cn.get(k, k), v)
-                            for k, v in counts.items()))
+    seg = []
+    for k, v in counts.items():
+        if k == "line":
+            n_obj = v + len([x for x in R["items"]
+                             if x["id"] in merged and x["role"] == "line"])
+            seg.append("%s %d（文件里有 %d 个线条对象）" % (cn.get(k, k), v, n_obj))
+        else:
+            seg.append("%s %d" % (cn.get(k, k), v))
+    print("   " + "   ".join(seg))
     print("   标号图：%s" % args.out)
     print("=" * 64)
     print("**请扫一眼这张图**，然后回答：")
