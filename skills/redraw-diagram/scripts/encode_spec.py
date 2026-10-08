@@ -151,6 +151,11 @@ def main():
                   "p2": [round(o["p2"][0] - ox, 1), round(o["p2"][1] - oy, 1)],
                   "arrow": o.get("line", {}).get("arrow") or "end",
                   "provenance": "measured", "evidence": o.get("evidence") or []}
+            # ★ rot 必须带上。实测栽过：原件那条折线是 rot=270°，
+            #   漏掉它 → 折线拐反、**两端也落在错的地方**
+            #   （因为旋转过的连接符，盒子四角根本不是端点）。
+            if o.get("rot"):
+                it["rot"] = o["rot"]
             if o.get("prst"):
                 it["prst"] = o["prst"]
             if o["line"].get("arrow_type"):

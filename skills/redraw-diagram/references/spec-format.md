@@ -151,6 +151,8 @@ changes[]      += {from:"", to:"审批", by:"user", ...}
       "id": "s01",
       "for": "e01",               // ★ 必填：这个对象在表达谁
       "kind": "roundrect",        // rect|roundrect|diamond|ellipse|line|brace|arrow|picture|text|verbatim
+      "rot": 270,                 // ★ 只有 line 必须显式带：旋转过的连接符，
+                                  //   盒子四角**不是**端点。漏了它折线会拐反、两端也错
       "prst": "roundRect",        // 预设几何名（见 187 个预设形状表）
       "box": [100.0, 200.0, 160.0, 60.0],   // line 用 p1/p2 代替
       "fill": "DCE9F7",           // null = 透明

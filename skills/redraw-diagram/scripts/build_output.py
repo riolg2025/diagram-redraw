@@ -22,6 +22,7 @@ build_output.py —— 清单 → 输出（PPTX 可编辑图形 / SVG）。
 
 import argparse
 import base64
+import math
 import os
 import sys
 
@@ -243,6 +244,9 @@ def build_pptx(spec, path):
             stamp(cn)
             apply_line(cn, it.get("line"))
             set_arrow(cn, it.get("arrow"), it.get("arrow_type") or "arrow")
+            # ★ 连接符的旋转。漏了它，折线会拐反、两端也错。
+            if it.get("rot"):
+                cn.rotation = it["rot"]
             continue
 
         # ---- 原样搬运 ----
@@ -295,16 +299,121 @@ def esc(s):
             .replace(">", "&gt;"))
 
 
-def svg_text(x, y, lines, t, face, anchor="middle"):
+def tr_of(it):
+    b = it["box"]
+    return (' transform="rotate(%s %.1f %.1f)"' % (it["rot"], b[0] + b[2] / 2,
+                                                   b[1] + b[3] / 2)
+            if it.get("rot") else "")
+
+
+def svg_text(x, y, lines, t, face, anchor="middle", ident=None):
     size = (t.get("font_pt") or 10) * PT2PX
-    out = ['<text x="%.1f" y="%.1f" font-size="%.2f" fill="#%s" text-anchor="%s" '
+    out = ['<text%s x="%.1f" y="%.1f" font-size="%.2f" fill="#%s" text-anchor="%s" '
            'font-family="%s, PingFang SC, Microsoft YaHei, sans-serif">'
-           % (x, y, size, t.get("color") or "333333", anchor, face)]
+           % (' id="%s"' % ident if ident else "", x, y, size,
+              t.get("color") or "333333", anchor, face)]
     for i, ln in enumerate(lines):
         out.append('<tspan x="%.1f" dy="%.2f">%s</tspan>'
                    % (x, 0.0 if i == 0 else size * 1.15, esc(ln)))
     out.append("</text>")
     return "".join(out)
+
+
+# ---- SVG：连接符的路径 ----------------------------------------------------
+# 定义抄自 OOXML 的权威数据（refs/ppt-master/psd.xml），不是我编的：
+#   straightConnector1  (l,t) → (r,b)
+#   bentConnector2      (l,t) → (r,t) → (r,b)
+#   bentConnector3      (l,t) → (x1,t) → (x1,b) → (r,b)    x1 = w·adj1/100000
+CONN_PTS = {
+    "straightConnector1": lambda w, h, a: [(0, 0), (w, h)],
+    "bentConnector2": lambda w, h, a: [(0, 0), (w, 0), (w, h)],
+    "bentConnector3": lambda w, h, a: [(0, 0), (w * a, 0), (w * a, h), (w, h)],
+}
+
+
+def svg_map_pts(pts, x, y, w, h, flip_h, flip_v, rot):
+    """把局部路径点套上翻转和旋转，落到画布坐标。
+
+    ★ rot 必须算。实测栽过：原件那条折线是 rot=270°，
+      不算的话折线拐反，**两端也落在错的地方** —— 因为旋转过的连接符，
+      盒子四角根本不是端点。我一开始就是拿盒子四角当端点，所以"两端"也错了。
+    """
+    cx, cy = x + w / 2.0, y + h / 2.0
+    r = math.radians(rot or 0)
+    co, si = math.cos(r), math.sin(r)
+    out = []
+    for px, py in pts:
+        if flip_h:
+            px = w - px
+        if flip_v:
+            py = h - py
+        px, py = x + px, y + py
+        if rot:
+            dx, dy = px - cx, py - cy
+            px, py = cx + dx * co - dy * si, cy + dx * si + dy * co
+        out.append((px, py))
+    return out
+
+
+def conn_box(p1, p2):
+    """从两端推出盒子 + 翻转 —— 和 python-pptx 的 add_connector 同一套算法。"""
+    x, y = min(p1[0], p2[0]), min(p1[1], p2[1])
+    w, h = abs(p2[0] - p1[0]), abs(p2[1] - p1[1])
+    return x, y, w, h, p1[0] > p2[0], p1[1] > p2[1]
+
+
+def drawingml_path_to_svg(el, box):
+    """`<a:custGeom>` 的 pathLst → SVG path 的 d。
+
+    这是「原样搬运」在 SVG 侧要的东西。**认不出的命令要报出来，不静默丢。**
+    """
+    A_ = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
+    pl = next((e for e in el.iter() if e.tag == A_ + 'pathLst'), None)
+    if pl is None:
+        return None, ["没有 custGeom 路径"]
+    path = next((e for e in pl.iter() if e.tag == A_ + 'path'), None)
+    if path is None:
+        return None, ["pathLst 里没有 path"]
+    pw = float(path.get('w') or 0) or 1.0
+    ph = float(path.get('h') or 0) or 1.0
+    bx, by, bw, bh = box
+    sx, sy = bw / pw, bh / ph
+    d, warns = [], []
+
+    def pt(e):
+        return (bx + float(e.get('x') or 0) * sx, by + float(e.get('y') or 0) * sy)
+
+    for cmd in path:
+        tag = cmd.tag.rsplit('}', 1)[-1]
+        ps = [pt(c) for c in cmd if c.tag.rsplit('}', 1)[-1] == 'pt']
+        if tag == 'moveTo' and ps:
+            d.append("M %.1f %.1f" % ps[0])
+        elif tag == 'lnTo' and ps:
+            d.append("L %.1f %.1f" % ps[0])
+        elif tag == 'cubicBezTo' and len(ps) == 3:
+            d.append("C " + " ".join("%.1f %.1f" % p for p in ps))
+        elif tag == 'quadBezTo' and len(ps) == 2:
+            d.append("Q " + " ".join("%.1f %.1f" % p for p in ps))
+        elif tag == 'close':
+            d.append("Z")
+        else:
+            warns.append("路径命令 %s 还没实现" % tag)
+    return (" ".join(d) if d else None), warns
+
+
+def svg_fill_of(el):
+    """搬运过来的形状在 SVG 里用什么填充（颜色在观察那步已解析成绝对色）。"""
+    A_ = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
+    sf = next((e for e in el.iter() if e.tag == A_ + 'solidFill'), None)
+    if sf is None:
+        return "none"
+    c = next((e for e in sf.iter() if e.tag == A_ + 'srgbClr'), None)
+    if c is None:
+        return "none"
+    a = next((e for e in c if e.tag == A_ + 'alpha'), None)
+    if a is not None:
+        return "#%s" % c.get('val')
+    return "#%s" % c.get('val')
 
 
 def build_svg(spec, path):
@@ -318,8 +427,10 @@ def build_svg(spec, path):
          'markerWidth="6" markerHeight="6" orient="auto-start-reverse">'
          '<path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/></marker></defs>']
 
+    svg_warn = []
     for it in sorted(spec.get("layout") or [], key=lambda s: s.get("z", 0)):
         kind = it["kind"]
+        iid = it.get("id") or ""
         ln = it.get("line") or {}
         stroke = (' stroke="#%s" stroke-width="%.2f"'
                   % (ln["color"], ln.get("pt", 0.75) * PT2PX)) if ln.get("color") else ""
@@ -330,18 +441,46 @@ def build_svg(spec, path):
         face = t.get("face") or "微软雅黑"
 
         if kind == "line":
+            # ★ 折线要按**预设几何 + 翻转 + 旋转**画成真路径。
+            #   以前这里一律写 <line>，两条折线全被画成了斜线 —— 而 Check A
+            #   当时只看 PPTX，SVG 错了没人知道。
             p1, p2 = it["p1"], it["p2"]
-            dash = (' stroke-dasharray="7,4"'
-                    if ln.get("dash") and ln["dash"] != "solid" else "")
+            bx, by, bw, bh, fh, fv = conn_box(p1, p2)
+            prst = it.get("prst") or "straightConnector1"
+            gen = CONN_PTS.get(prst)
+            if gen is None:
+                svg_warn.append("%s：连接符预设几何 %s 没实现，先按直线画"
+                                % (iid, prst))
+                gen = CONN_PTS["straightConnector1"]
+            pts = svg_map_pts(gen(bw, bh, 0.5), bx, by, bw, bh, fh, fv,
+                              it.get("rot"))
+            d = "M " + " L ".join("%.1f %.1f" % p for p in pts)
             mk = ""
             if it.get("arrow") == "end":
                 mk = ' marker-end="url(#ah)"'
             elif it.get("arrow") == "both":
                 mk = ' marker-start="url(#ah)" marker-end="url(#ah)"'
-            o.append('<line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#%s" '
+            # 注意：stroke 属性已经在这条里拼好了，**不能再把 stroke 变量塞进来**
+            # （那样会出现两个 stroke 属性 → SVG 不合法 → 浏览器整页报错）
+            dash_attr = (' stroke-dasharray="7,4"'
+                         if ln.get("dash") and ln["dash"] != "solid" else "")
+            o.append('<path id="%s" d="%s" fill="none" stroke="#%s" '
                      'stroke-width="%.2f"%s%s/>'
-                     % (p1[0], p1[1], p2[0], p2[1], ln.get("color") or "333333",
-                        ln.get("pt", 0.75) * PT2PX, dash, mk))
+                     % (iid, d, ln.get("color") or "333333",
+                        ln.get("pt", 0.75) * PT2PX, dash_attr, mk))
+            continue
+
+        if kind == "verbatim":
+            # ★ 搬运过来的形状，SVG 侧也要搬 —— 以前没有这个分支，
+            #   8 个图标落进了 else，被画成了矩形。
+            el = etree.parse(os.path.join(spec_dir, it["src"])).getroot()
+            d, warns = drawingml_path_to_svg(el, it["box"])
+            svg_warn += ["%s：%s" % (iid, w) for w in warns]
+            if d:
+                o.append('<path id="%s" d="%s" fill="%s" stroke="none"%s/>'
+                         % (iid, d, svg_fill_of(el), tr_of(it)))
+            else:
+                svg_warn.append("%s：搬运项在 SVG 里没画出来" % iid)
             continue
 
         if kind == "picture":
@@ -359,26 +498,30 @@ def build_svg(spec, path):
 
         b = it["box"]
         x, y, w, h = b
-        tr = ' transform="rotate(%s %.1f %.1f)"' % (it["rot"], x + w / 2, y + h / 2) \
-            if it.get("rot") else ""
+        tr = tr_of(it)
         if kind in ("rect", "container"):
-            o.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s"%s%s/>'
-                     % (x, y, w, h, fill, stroke, tr))
+            o.append('<rect id="%s" x="%.1f" y="%.1f" width="%.1f" height="%.1f" '
+                     'fill="%s"%s%s/>' % (iid, x, y, w, h, fill, stroke, tr))
         elif kind == "roundrect":
-            o.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" rx="10" '
-                     'fill="%s"%s%s/>' % (x, y, w, h, fill, stroke, tr))
+            o.append('<rect id="%s" x="%.1f" y="%.1f" width="%.1f" height="%.1f" '
+                     'rx="10" fill="%s"%s%s/>'
+                     % (iid, x, y, w, h, fill, stroke, tr))
         elif kind == "ellipse":
-            o.append('<ellipse cx="%.1f" cy="%.1f" rx="%.1f" ry="%.1f" fill="%s"%s%s/>'
-                     % (x + w / 2, y + h / 2, w / 2, h / 2, fill, stroke, tr))
-        elif kind == "diamond":
-            o.append('<polygon points="%.1f,%.1f %.1f,%.1f %.1f,%.1f %.1f,%.1f" '
+            o.append('<ellipse id="%s" cx="%.1f" cy="%.1f" rx="%.1f" ry="%.1f" '
                      'fill="%s"%s%s/>'
-                     % (x + w / 2, y, x + w, y + h / 2, x + w / 2, y + h, x, y + h / 2,
-                        fill, stroke, tr))
-        else:
-            # brace / arrow / 其它：先按矩形占位，等接上 187 个预设几何的表再补
-            o.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s"%s%s/>'
-                     % (x, y, w, h, fill, stroke, tr))
+                     % (iid, x + w / 2, y + h / 2, w / 2, h / 2, fill, stroke, tr))
+        elif kind == "diamond":
+            o.append('<polygon id="%s" points="%.1f,%.1f %.1f,%.1f %.1f,%.1f %.1f,%.1f" '
+                     'fill="%s"%s%s/>'
+                     % (iid, x + w / 2, y, x + w, y + h / 2, x + w / 2, y + h, x,
+                        y + h / 2, fill, stroke, tr))
+        elif kind != "text":
+            # brace / arrow / 其它预设几何：还没接上 187 个那个表 —— **报出来，不静默**
+            # （text 不走这里报警：文本框本来就是"透明矩形 + 单独的 <text>"）
+            svg_warn.append("%s：kind=%s 在 SVG 里按矩形占位" % (iid, kind))
+        if True:
+            o.append('<rect id="%s" x="%.1f" y="%.1f" width="%.1f" height="%.1f" '
+                     'fill="%s"%s%s/>' % (iid, x, y, w, h, fill, stroke, tr))
 
         if t.get("lines"):
             lines = [str(v) for v in t["lines"]]
@@ -387,12 +530,16 @@ def build_svg(spec, path):
                                                                  "middle")
             cx = x + w / 2 if al == "middle" else (x + 6 if al == "start" else x + w - 6)
             y0 = y + h / 2 - (len(lines) - 1) * sz * 0.58 + sz * 0.35
-            o.append(svg_text(cx, y0, lines, t, face, al))
+            o.append(svg_text(cx, y0, lines, t, face, al, iid))
 
     o.append("</svg>")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(o))
-    return path
+    # ★ 不静默：SVG 侧画不了 / 降级的地方全部报出来。
+    #   实测栽过：8 个图标在 SVG 里变成了矩形，两个检查都看不见。
+    for w_ in svg_warn:
+        print("  ⚠ SVG 降级：%s" % w_, file=sys.stderr)
+    return path, svg_warn
 
 
 # --------------------------------------------------------------------------
@@ -407,7 +554,9 @@ def main():
     if args.pptx:
         print("PPTX :", build_pptx(spec, args.pptx))
     if args.svg:
-        print("SVG  :", build_svg(spec, args.svg))
+        p_, warns_ = build_svg(spec, args.svg)
+        print("SVG  :", p_)
+        print("       SVG 降级 %d 处" % len(warns_))
     if not (args.pptx or args.svg):
         print("没给 --pptx 或 --svg，什么都没做")
 
