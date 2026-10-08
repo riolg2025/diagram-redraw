@@ -30,7 +30,7 @@ STATUSES = ("unconfirmed", "confirmed", "changed")
 REL_KINDS = ("sequence", "dependency", "containment", "association")
 REL_DIRS = ("forward", "backward", "both", "none")
 LAYOUT_KINDS = ("rect", "roundrect", "diamond", "ellipse", "line", "brace",
-                "arrow", "picture", "text", "container")
+                "arrow", "picture", "text", "container", "verbatim")
 BOX_KINDS = ("rect", "roundrect", "diamond", "ellipse", "brace", "arrow",
              "picture", "text", "container")
 
@@ -142,6 +142,8 @@ def check(spec):
         elif f not in meaning_ids:
             p.add(at + ".for", "指向不存在的东西：%r" % f)
         kind = _enum(p, at + ".kind", s.get("kind"), LAYOUT_KINDS)
+        if kind == "verbatim" and not s.get("src"):
+            p.add(at + ".src", "kind=verbatim（原样搬运）必须给 src（要搬的那份 XML）")
         has_box = "box" in s
         has_pts = "p1" in s or "p2" in s
         if kind == "line":

@@ -36,6 +36,8 @@ ARROWISH = ("arrow",)
 
 def kind_map(obs_shape):
     k = obs_shape.get("kind")
+    if k == "verbatim":
+        return "verbatim"          # 原样搬运
     if k == "picture":
         return "picture"
     if k == "text":
@@ -64,6 +66,8 @@ def role_of(obs_shape):
         return ["relation_carrier"]
     if k == "brace":
         return ["annotation"]
+    if k == "verbatim":
+        return ["decoration"]        # 表达不了的图形，先如实记成装饰
     return ["shape"]
 
 
@@ -82,6 +86,12 @@ def layout_of(obs, for_id, lid):
         it["box"] = obs["box"]
         if obs.get("src"):
             it["src"] = obs["src"]
+    elif kind == "verbatim":
+        it["box"] = obs["box"]
+        it["src"] = obs["xml"]
+        it["provenance"] = "measured"
+        it["evidence"] = list(obs.get("evidence") or [])
+        return it                     # 搬运项没有文字/颜色可读，原样带走
     else:
         it["box"] = obs["box"]
 

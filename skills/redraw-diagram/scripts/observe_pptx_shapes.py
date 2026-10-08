@@ -30,6 +30,7 @@ import sys
 from collections import Counter
 
 from PIL import Image
+from lxml import etree
 from pptx import Presentation
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 
@@ -57,6 +58,69 @@ def _first(el, tag):
         if e.tag == tag:
             return e
     return None
+
+
+def theme_colors(pptx_path):
+    """读原件的主题色表：{accent1: "08266E", ...}。
+
+    ★ 为什么必须解析：搬运过来的形状用的是 `schemeClr`（**主题色**）。
+      不解析的话，它会在**新文档的主题**下重新取色 —— 实测 8 个图标
+      从深藏青变成了浅蓝。**主题色是原件的事实，不能让它跟着新主题漂。**
+    """
+    import zipfile
+    out = {}
+    try:
+        z = zipfile.ZipFile(pptx_path)
+        name = next((n for n in z.namelist()
+                     if n.startswith("ppt/theme/theme") and n.endswith(".xml")), None)
+        if not name:
+            return out
+        root = etree.fromstring(z.read(name))
+        cs = next((e for e in root.iter()
+                   if e.tag.rsplit('}', 1)[-1] == 'clrScheme'), None)
+        if cs is None:
+            return out
+        for e in cs:
+            key = e.tag.rsplit('}', 1)[-1]
+            v = next((c.get('val') for c in e.iter() if c.get('val')), None)
+            if v:
+                out[key] = v
+    except Exception:
+        pass
+    return out
+
+
+def resolve_theme_colors(el, scheme):
+    """把 XML 里的 `schemeClr` / `sysClr` 就地换成解析后的 `srgbClr`。
+
+    ⚠️ 只处理**没有修饰符**的（lumMod / tint / shade …）。
+      有修饰符就**返回警告**，不静默给一个错的颜色 ——
+      这个项目栽过太多次"悄悄错了"。
+    """
+    warn = []
+    for e in list(el.iter()):
+        ln = e.tag.rsplit('}', 1)[-1]
+        if ln not in ('schemeClr', 'sysClr'):
+            continue
+        key = e.get('val')
+        hexv = scheme.get(key) or (e.get('lastClr') if ln == 'sysClr' else None)
+        mods = [c.tag.rsplit('}', 1)[-1] for c in e]
+        if mods:
+            warn.append("%s=%s 带修饰符 %s —— 只换了底色，**亮度没算**，可能不准"
+                        % (ln, key, ",".join(mods)))
+        if not hexv:
+            warn.append("%s=%s 在原件主题里找不到，保持原样（新主题下会变色）"
+                        % (ln, key))
+            continue
+        parent = e.getparent()
+        idx = list(parent).index(e)
+        new = etree.Element(A + 'srgbClr')
+        new.set('val', hexv)
+        for c in list(e):
+            new.append(c)
+        parent.remove(e)
+        parent.insert(idx, new)
+    return warn
 
 
 def _first_local(el, local):
@@ -333,9 +397,14 @@ def main():
     prs = Presentation(args.pptx)
     slide = prs.slides[args.slide - 1]
     canvas = [emu_to_px(prs.slide_width), emu_to_px(prs.slide_height)]
+    scheme = theme_colors(args.pptx)
+    color_warnings = []
 
     media_dir = args.media_dir or (os.path.splitext(os.path.abspath(args.out))[0] + ".media")
     os.makedirs(media_dir, exist_ok=True)
+    # ★ 「原样搬运」的 sidecar：表达不了的形状，把它的 XML 存下来
+    verbatim_dir = os.path.splitext(os.path.abspath(args.out))[0] + ".verbatim"
+    os.makedirs(verbatim_dir, exist_ok=True)
     out_dir = os.path.dirname(os.path.abspath(args.out))
 
     shapes, connectors, groups, unsupported = [], [], [], []
@@ -414,8 +483,21 @@ def main():
                 unsupported.append(dict(base, what="表格", why="不支持"))
                 continue
             if str(sh.shape_type).startswith("FREEFORM"):
-                unsupported.append(dict(base, what="自由曲线图形（图标一类）",
-                                        why="FREEFORM 画不出来"))
+                # ★ 表达不了 ≠ 没法要。
+                #   FREEFORM 是 <p:sp> + <a:custGeom>，**原样搬过来还是原生可编辑形状**。
+                #   我一开始把它塞进"画不出来"，那是拿自己的管线能力当原件的边界。
+                # ★ 主题色要按**原件的**主题解析成绝对色再搬，
+                #   否则它会跟着新文档的主题漂（实测图标从藏青变浅蓝）。
+                copy_el = etree.fromstring(etree.tostring(el))
+                ws = resolve_theme_colors(copy_el, scheme)
+                # 注意用 extend 不用 +=：嵌套函数里 += 会被当成局部变量
+                color_warnings.extend("%s: %s" % (oid, w) for w in ws)
+                fn = os.path.join(verbatim_dir, "%s.xml" % oid)
+                with open(fn, "wb") as fh:
+                    fh.write(etree.tostring(copy_el, xml_declaration=True,
+                                            encoding="UTF-8", standalone=True))
+                shapes.append(dict(base, kind="verbatim",
+                                   xml=os.path.relpath(fn, out_dir)))
                 continue
 
             # ---- 其余：形状 ----
@@ -476,6 +558,7 @@ def main():
         "connectors": connectors,
         "groups": groups,
         "unsupported": unsupported,
+        "color_warnings": color_warnings,
         "stats": {
             "shapes": len(shapes),
             "connectors": len(connectors),
@@ -514,6 +597,12 @@ def main():
         print("  ⚠ %d 个形状没有文字：先按「原件故意留空」处理，**不要自己填名字**，"
               % len(textless))
         print("     除非用户确认那是没画完。见 references/reading-rules.md")
+    if color_warnings:
+        print()
+        print("  ⚠ 搬运时主题色没解析干净的 %d 处（**没静默放过**）："
+              % len(color_warnings))
+        for w in color_warnings[:5]:
+            print("     - %s" % w)
     if unsupported:
         print()
         print("  画不出来的：")

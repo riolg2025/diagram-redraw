@@ -59,6 +59,65 @@ def IN(px):
     return Inches(float(px) / DPI)
 
 
+def EMU(px):
+    return int(float(px) / DPI * 914400)
+
+
+def _local(el, name):
+    """按元素名找（不管命名空间）—— p: 和 a: 都有 cNvPr / xfrm 这类同名元素。"""
+    for e in el.iter():
+        if e.tag.rsplit('}', 1)[-1] == name:
+            return e
+    return None
+
+
+def add_verbatim(sl, it, spec_dir):
+    """**原样搬运**：把原件的形状 XML 直接搬进来，一个像素都不改。
+
+    ★ 为什么要有这条：表达不了 ≠ 没法要。
+      FREEFORM（图标一类）是 <p:sp> + <a:custGeom>，搬过来**还是原生可编辑形状**，
+      完全符合"要可编辑"这条主线。我一开始把它列进"画不出来"，
+      那是**拿自己管线的能力当原件的边界**。
+
+    代价要说清楚：自由曲线点开是**一堆节点**，改起来不如预设形状顺手。
+    所以清单里它是 kind=verbatim，交付时要告诉用户"这几个是搬过来的"。
+    """
+    src = os.path.join(spec_dir, it["src"])
+    el = etree.parse(src).getroot()
+
+    # 1) 删掉**悬空的关系引用** —— 新文档里没有这些 rId，
+    #    留着的话 PowerPoint 打开会报"需要修复"。
+    for tag in ('custDataLst', 'hlinkClick', 'hlinkHover', 'audioFile',
+                'videoFile', 'media', 'oleObject'):
+        for e in list(el.iter()):
+            if e.tag.rsplit('}', 1)[-1] == tag:
+                e.getparent().remove(e)
+
+    # 2) 换一个不撞的 id，并把名字设成清单的 id（生成时留痕，和别的形状一致）
+    spTree = sl.shapes._spTree
+    used = [int(e.get("id")) for e in spTree.iter()
+            if e.tag.rsplit('}', 1)[-1] == 'cNvPr' and (e.get("id") or "").isdigit()]
+    cNvPr = _local(el, 'cNvPr')
+    if cNvPr is not None:
+        cNvPr.set("id", str((max(used) + 1) if used else 2))
+        cNvPr.set("name", str(it["id"]))
+
+    # 3) 坐标换成绝对坐标（组变换在观察那一步已经算好了）
+    xfrm = _local(el, 'xfrm')
+    if xfrm is not None:
+        b = it["box"]
+        off, ext = _local(xfrm, 'off'), _local(xfrm, 'ext')
+        if off is not None:
+            off.set("x", str(EMU(b[0])))
+            off.set("y", str(EMU(b[1])))
+        if ext is not None:
+            ext.set("cx", str(EMU(b[2])))
+            ext.set("cy", str(EMU(b[3])))
+
+    spTree.append(el)
+    return el
+
+
 def load(path):
     import json
     with open(path, encoding="utf-8") as f:
@@ -184,6 +243,11 @@ def build_pptx(spec, path):
             stamp(cn)
             apply_line(cn, it.get("line"))
             set_arrow(cn, it.get("arrow"), it.get("arrow_type") or "arrow")
+            continue
+
+        # ---- 原样搬运 ----
+        if kind == "verbatim":
+            add_verbatim(sl, it, spec_dir)
             continue
 
         # ---- 图片 ----

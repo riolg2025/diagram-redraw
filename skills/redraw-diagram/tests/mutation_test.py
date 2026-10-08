@@ -97,6 +97,12 @@ MUTATIONS = [
     _mut("⑧ changes.by 非法",
          lambda s: s["changes"][0].__setitem__("by", "robot")),
 
+    _mut("⑩ verbatim 没给 src",
+         lambda s: s["layout"].append({
+             "id": "s98", "for": "e01", "kind": "verbatim",
+             "box": [0.0, 0.0, 10.0, 10.0],
+             "provenance": "measured", "evidence": ["p:sp#70"]})),
+
     _mut("⑩ line 用了 box",
          lambda s: s["layout"][3].__setitem__("box", [0, 0, 10, 10])),
     _mut("⑩ line 缺 p1/p2",
