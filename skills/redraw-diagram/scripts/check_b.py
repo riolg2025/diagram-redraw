@@ -29,8 +29,14 @@ check_b.py —— Check B：**清单 vs 原件**。
 
 import argparse
 import json
+import os
 import re
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from common import Xfrm, GroupCtx  # noqa: E402
+
+A = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
 
 # 「来自原件」的来源档位 —— 这些的文字**必须**在原文件里找得到。
 # inferred / domain / user 不在其中：那几类本来就不承诺"原件里写着了"。
@@ -49,33 +55,53 @@ def norm(s):
 
 
 # --------------------------------------------------------------------------
-def walk(shapes):
+def walk_abs(shapes, ctx=None):
+    """递归遍历，**带上组坐标变换**，产出 (shape, 页面像素框)。
+
+    ★ 不能直接用 sh.left：组内形状给的是**组内相对坐标**。
+      实测踩过：拿它做区域过滤，把组里的东西全筛掉了（"虚拟机 Agent" 全在组里）。
+      项目自己也记过同一个坑：组坐标要减 chOff。
+    """
     from pptx.enum.shapes import MSO_SHAPE_TYPE
+    ctx = ctx or GroupCtx((0, 0), (1.0, 1.0), (0, 0))
     for sh in shapes:
+        xf = Xfrm(sh._element, A)
+        if not xf.ok:
+            continue
+        box = ctx.box_px(xf)
         if sh.shape_type == MSO_SHAPE_TYPE.GROUP:
-            for sub in walk(sh.shapes):
+            for sub in walk_abs(sh.shapes, ctx.child(xf)):
                 yield sub
         else:
-            yield sh
+            yield sh, box
 
 
-def extract_pptx_text(path, slide_no):
-    """**独立**地从原 pptx 里取文字（不经过 observe 那套代码）。"""
+def extract_pptx_text(path, slide_no, region=None):
+    """**独立**地从原 pptx 里取文字（不经过 observe 那套代码）。
+
+    region —— 只取**范围之内**的文字。用户确认"只重画左边那块"之后，
+    右上文字卡、标题这些本来就不该被算成"遗漏"。
+    """
     from pptx import Presentation
+    DPI = 150.0
     prs = Presentation(path)
     blocks = []
     slides = [prs.slides[slide_no - 1]] if slide_no else list(prs.slides)
     for sl in slides:
-        for sh in walk(sl.shapes):
+        for sh, box in walk_abs(sl.shapes):
             if not sh.has_text_frame:
                 continue
+            if region:
+                cx, cy = box[0] + box[2] / 2, box[1] + box[3] / 2
+                if not (region[0] <= cx <= region[0] + region[2]
+                        and region[1] <= cy <= region[1] + region[3]):
+                    continue
             t = sh.text_frame.text
             if norm(t):
                 blocks.append(t)
     # SmartArt 的文字不在 shape 里，在 ppt/diagrams/data*.xml
     import zipfile
     from lxml import etree
-    A = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
     try:
         z = zipfile.ZipFile(path)
         for nm in z.namelist():
@@ -91,13 +117,34 @@ def extract_pptx_text(path, slide_no):
 
 
 def spec_texts(spec):
-    """清单里 层1 的文字条目：(id, text, provenance)。"""
+    """清单里所有"声称有文字"的条目：(id, text, provenance)。
+
+    ★ 层 1（entities）和层 2（layout）**都要看**。
+      实测漏过：绿色条的标题「自动化运维平台能力通道」挂在 layout 上
+      （它归属一个分组，不是实体），只查 entities 就会把它误报成"遗漏"。
+    """
     out = []
     for e in spec.get("entities") or []:
-        t = e.get("text")
+        t = e.get("text") or e.get("text_user")
         if t:
             out.append((e.get("id"), t, e.get("provenance")))
-    return out
+    for it in spec.get("layout") or []:
+        tx = it.get("text") or {}
+        lines = tx.get("lines") or []
+        t = "".join(str(x) for x in lines)
+        if t:
+            # ★ text.prov 优先：一个 layout 条目可能是"几何来自原件、文字被用户改了"。
+            #   不分开的话，用户改过的字会被当成"我编的"。
+            out.append((it.get("id"), t, tx.get("prov") or it.get("provenance")))
+    # 同一个字符串（实体和它的 layout 各一份）只留一条，免得重复报
+    seen, uniq = set(), []
+    for i, t, p in out:
+        k = norm(t)
+        if k in seen:
+            continue
+        seen.add(k)
+        uniq.append((i, t, p))
+    return uniq
 
 
 # --------------------------------------------------------------------------
@@ -118,7 +165,17 @@ def main():
         print("  → 这一项要交给「另一双眼睛」：给一个不共享上下文的读者反读输出。")
         return 0
 
-    blocks = extract_pptx_text(args.original, args.slide)
+    # 范围从清单里读 —— 用户确认过的那个范围
+    region = None
+    for f in (spec.get("source") or {}).get("files") or []:
+        if f.get("region"):
+            region = f["region"]
+            break
+    blocks = extract_pptx_text(args.original, args.slide, region)
+    if region:
+        print("Check B：清单 vs 原件（只看清单里声明的范围 %s）" % (region,))
+    else:
+        print("Check B：清单 vs 原件")
     blob = norm("".join(blocks))
     block_set = {norm(b) for b in blocks}
 
@@ -142,7 +199,6 @@ def main():
         if n and n not in spec_blob:
             missing.append(b)
 
-    print("Check B：清单 vs 原件")
     print("  原件文字块        %d" % len(blocks))
     print("  清单里带文字的     %d（其中标「来自原件」的 %d）"
           % (len(items),

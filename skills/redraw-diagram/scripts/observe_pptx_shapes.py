@@ -90,6 +90,77 @@ def theme_colors(pptx_path):
     return out
 
 
+def _rgb_to_hsl(r, g, b):
+    r, g, b = r / 255.0, g / 255.0, b / 255.0
+    mx, mn = max(r, g, b), min(r, g, b)
+    l = (mx + mn) / 2
+    if mx == mn:
+        return 0.0, l, 0.0
+    d = mx - mn
+    s = d / (2 - mx - mn) if l > 0.5 else d / (mx + mn)
+    if mx == r:
+        h = ((g - b) / d) % 6
+    elif mx == g:
+        h = (b - r) / d + 2
+    else:
+        h = (r - g) / d + 4
+    return h / 6.0, l, s
+
+
+def _hsl_to_rgb(h, l, s):
+    if s == 0:
+        v = int(round(l * 255))
+        return v, v, v
+
+    def f(p, q, t):
+        t = t % 1.0
+        if t < 1 / 6.0:
+            return p + (q - p) * 6 * t
+        if t < 1 / 2.0:
+            return q
+        if t < 2 / 3.0:
+            return p + (q - p) * (2 / 3.0 - t) * 6
+        return p
+    q = l * (1 + s) if l < 0.5 else l + s - l * s
+    p = 2 * l - q
+    return tuple(int(round(max(0.0, min(1.0, f(p, q, h + o))) * 255))
+                 for o in (1 / 3.0, 0.0, -1 / 3.0))
+
+
+def apply_color_mods(hexv, el):
+    """把 DrawingML 的颜色修饰符（lumMod / lumOff / tint / shade）算进颜色。
+
+    ★ 为什么不能只查表了事：主题色常常带修饰符（比如 accent1 调暗 60%）。
+      只取基色会**悄悄给一个错的颜色**。算不出来的修饰符会**报出来**，不静默。
+    """
+    if hexv is None:
+        return None, []
+    r, g, b = (int(hexv[i:i + 2], 16) for i in (0, 2, 4))
+    h, l, sat = _rgb_to_hsl(r, g, b)
+    unknown = []
+    for c in el:
+        tag = c.tag.rsplit('}', 1)[-1]
+        try:
+            v = int(c.get('val')) / 100000.0
+        except Exception:
+            continue
+        if tag == 'lumMod':
+            l *= v
+        elif tag == 'lumOff':
+            l += v
+        elif tag == 'tint':
+            l = l * (1 - v) + v
+        elif tag == 'shade':
+            l *= v
+        elif tag in ('alpha', 'alphaMod', 'alphaOff'):
+            pass                      # 透明度不改颜色
+        elif tag in ('satMod', 'satOff', 'hueMod', 'hueOff', 'comp', 'inv',
+                     'gamma', 'invGamma'):
+            unknown.append(tag)
+    l = max(0.0, min(1.0, l))
+    return "%02X%02X%02X" % _hsl_to_rgb(h, l, sat), unknown
+
+
 def resolve_theme_colors(el, scheme):
     """把 XML 里的 `schemeClr` / `sysClr` 就地换成解析后的 `srgbClr`。
 
@@ -252,7 +323,7 @@ def font_of(el):
     return {"pt": pt, "face": face}
 
 
-def text_color_of(el):
+def text_color_of(el, scheme=None):
     """文字颜色，**先从 XML 读**。
 
     ★ 规矩和线条一样：**XML 里显式写了就用它，采样只是渲染的近似。**
@@ -272,7 +343,13 @@ def text_color_of(el):
                 return {"color": c.get('val'), "src": "xml"}
             s = sf.find(A + 'schemeClr')
             if s is not None:
-                return {"color": None, "src": "scheme", "scheme": s.get('val')}
+                key = s.get('val')
+                # ★ schemeClr 是**显式写的**，只是要拿主题表解析 —— 不能跑去采样。
+                #   实测：绿条上的白字标题（schemeClr lt1）被采成了深藏青。
+                base = (scheme or {}).get(key)
+                hexv, unk = apply_color_mods(base, s)
+                return {"color": hexv, "src": "scheme" if hexv else "scheme_unresolved",
+                        "scheme": key, "unknown_mods": unk}
     return {"color": None, "src": "unset"}
 
 
@@ -293,11 +370,15 @@ def text_color_sample(img, box, fill_hex, tol=110):
                 cnt[img.getpixel((xx, yy))] += 1
     if not cnt:
         return None
-    if not fill_hex:
-        return "%02X%02X%02X" % min(cnt, key=lambda p: sum(p))
-    fill = tuple(int(fill_hex[i:i + 2], 16) for i in (0, 2, 4))
+    # ★ 拿不到填充色时（文字框通常是 noFill），**不能用"取最深像素"** ——
+    #   实测踩过：绿条上的白字标题被采成了黑色。
+    #   改成用**框内众数**当背景参考：文字框里众数就是它背后的底色。
+    if fill_hex:
+        ref = tuple(int(fill_hex[i:i + 2], 16) for i in (0, 2, 4))
+    else:
+        ref = cnt.most_common(1)[0][0]
     for px, _n in cnt.most_common(60):
-        if sum(abs(a - b) for a, b in zip(px, fill)) > tol:
+        if sum(abs(a - b) for a, b in zip(px, ref)) > tol:
             return "%02X%02X%02X" % px
     return None
 
@@ -524,8 +605,12 @@ def main():
 
             fg = {"color": None, "src": None}
             if base["text"]:
-                fg = text_color_of(el)                      # ★ XML 优先
-                if fg["color"] is None and fg["src"] != "none" and ren is not None:
+                fg = text_color_of(el, scheme)              # ★ XML 优先
+                if fg.get("unknown_mods"):
+                    color_warnings.append("%s: 文字色的修饰符 %s 没算，可能不准"
+                                          % (oid, ",".join(fg["unknown_mods"])))
+                # 只有 **XML 里压根没写颜色** 才去渲染图采
+                if fg["color"] is None and fg["src"] in ("unset",) and ren is not None:
                     sampled = text_color_sample(ren, box, fl.get("color"))
                     if sampled:
                         fg = {"color": sampled, "src": "sampled"}
