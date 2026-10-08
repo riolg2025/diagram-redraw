@@ -54,12 +54,43 @@ def main():
                 sys.exit("✗ %s 被 %s 和 %s 同时认领了" % (oid, claim[oid], it["id"]))
             claim[oid] = it["id"]
 
+    all_obs = (O.get("shapes") or []) + (O.get("connectors") or [])
+
+    # ---- 范围自检：我声明的 S1，真的**装得下**我认领的东西吗？--------
+    # ★ 实测栽过：S1 是照着"有文字的东西"量的，漏了 4 个灰色底框 ——
+    #   底框比里面的内容更大，往右下多出一截。结果画布比内容小 18×15 像素，
+    #   4 个框画到画布外**被裁掉**，交付物里内容真的少了。
+    #
+    #   注意方向：原来只有"范围内的 → 都要被认领"，
+    #   **没有反过来的"被认领的 → 都要在范围内"**。两个方向都要查。
+    declared = (s1[0], s1[1], s1[0] + s1[2], s1[1] + s1[3])
+    need = list(declared)
+    for oid, owner in claim.items():
+        # S1/S2/S3 是**范围标记**，不是内容 —— 它们认领的东西（右上文字卡、
+        # 右下截图）本来就在范围外，算进来会把画布撑成整页。
+        if owner in ("S1", "S2", "S3"):
+            continue
+        o = next((x for x in all_obs if x["oid"] == oid), None)
+        if not o:
+            continue
+        b = o["box"]
+        need[0] = min(need[0], b[0])
+        need[1] = min(need[1], b[1])
+        need[2] = max(need[2], b[0] + b[2])
+        need[3] = max(need[3], b[1] + b[3])
+    if [round(v, 1) for v in need] != [round(v, 1) for v in declared]:
+        print("⚠ **声明的范围装不下认领的对象**，已扩大：")
+        print("     x %.0f–%.0f → %.0f–%.0f    y %.0f–%.0f → %.0f–%.0f"
+              % (declared[0], declared[2], need[0], need[2],
+                 declared[1], declared[3], need[1], need[3]))
+        ox, oy = need[0], need[1]
+        canvas = [round(need[2] - need[0]), round(need[3] - need[1])]
+
     # ---- 原件里、落在范围内、但没人认领的对象（= 我可能漏读了）--------
     def in_scope(b):
         return not (b[0] + b[2] < ox or b[0] > ox + canvas[0]
                     or b[1] + b[3] < oy or b[1] > oy + canvas[1])
 
-    all_obs = (O.get("shapes") or []) + (O.get("connectors") or [])
     orphan = [o for o in all_obs
               if o["oid"] not in claim and in_scope(o["box"])]
     # 范围外的：被 S2/S3 认领的，或者压根没在范围内的

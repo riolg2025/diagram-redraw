@@ -147,6 +147,22 @@ def check(spec):
         #   而 Check A 只查位置文字，结构上发现不了。
         if s.get("z") is None:
             p.add(at + ".z", "缺少 z（叠放次序）：没有它就保证不了画的次序和原件一致")
+        # ★ 所有对象必须在画布内。出界 = 被裁掉 = **内容真的少了**，
+        #   实测栽过：声明的范围漏了 4 个灰色底框，它们画到画布外被裁。
+        _cv = src.get("canvas") or [0, 0]
+        cw, ch = (_cv + [0, 0])[:2]
+        pts = []
+        if kind != "line" and isinstance(s.get("box"), list) and len(s["box"]) == 4:
+            b = s["box"]
+            pts = [(b[0], b[1]), (b[0] + b[2], b[1] + b[3])]
+        elif isinstance(s.get("p1"), list) and isinstance(s.get("p2"), list):
+            pts = [(s["p1"][0], s["p1"][1]), (s["p2"][0], s["p2"][1])]
+        for (px, py) in pts:
+            if px < -0.5 or py < -0.5 or px > cw + 0.5 or py > ch + 0.5:
+                p.add(at + ".box",
+                      "对象出界（点 %.0f,%.0f 不在画布 %.0f×%.0f 内）—— "
+                      "出界会被裁掉，等于**内容少了**" % (px, py, cw, ch))
+                break
         if kind == "verbatim" and not s.get("src"):
             p.add(at + ".src", "kind=verbatim（原样搬运）必须给 src（要搬的那份 XML）")
         has_box = "box" in s

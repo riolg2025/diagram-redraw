@@ -97,6 +97,10 @@ MUTATIONS = [
     _mut("⑧ changes.by 非法",
          lambda s: s["changes"][0].__setitem__("by", "robot")),
 
+    _mut("⑩ 对象画到画布外",
+         lambda s: s["layout"][0].__setitem__(
+             "box", [s["source"]["canvas"][0] + 50.0, 0.0, 10.0, 10.0])),
+
     _mut("⑩ 少了 z（叠放次序）",
          lambda s: s["layout"][0].pop("z", None)),
 
