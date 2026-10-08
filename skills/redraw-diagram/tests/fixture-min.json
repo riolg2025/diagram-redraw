@@ -1,0 +1,184 @@
+{
+ "spec_version": "0.2",
+ "task": {"id": "fixture-min", "round": 2, "created": "2026-10-08T23:50:00+08:00"},
+ "source": {
+  "canvas": [2000, 1125],
+  "unit": "px@150dpi",
+  "files": [
+   {"path": "source/deck.pptx", "kind": "pptx_shapes", "slide": 6, "region": [80, 300, 1000, 320]}
+  ]
+ },
+
+ "entities": [
+  {
+   "id": "e01",
+   "role": ["shape"],
+   "text": "开发环境",
+   "text_user": "测试环境",
+   "box_src": [100.0, 400.0, 200.0, 80.0],
+   "group": "g01",
+   "provenance": "original",
+   "evidence": ["p:sp#12", "a:t=开发环境"],
+   "status": "changed"
+  },
+  {
+   "id": "e02",
+   "role": ["shape"],
+   "text": "制品库",
+   "box_src": [400.0, 400.0, 200.0, 80.0],
+   "group": "g01",
+   "provenance": "original",
+   "evidence": ["p:sp#13"],
+   "status": "confirmed"
+  },
+  {
+   "id": "e03",
+   "role": ["shape"],
+   "text": "预发布环境",
+   "box_src": [700.0, 400.0, 200.0, 80.0],
+   "provenance": "original",
+   "evidence": ["p:sp#14"],
+   "status": "unconfirmed"
+  },
+  {
+   "id": "e04",
+   "role": ["decoration"],
+   "text": null,
+   "box_src": [950.0, 200.0, 60.0, 60.0],
+   "provenance": "measured",
+   "evidence": ["p:sp#40 (FREEFORM)"],
+   "status": "confirmed",
+   "not_drawn": true
+  }
+ ],
+
+ "relations": [
+  {
+   "id": "r01",
+   "from": "e01", "to": "e02",
+   "kind": "sequence", "direction": "forward",
+   "provenance": "measured",
+   "evidence": ["p:cxnSp#20 stCxn=12 endCxn=13"],
+   "status": "confirmed"
+  },
+  {
+   "id": "r02",
+   "from": "e02", "to": "e03",
+   "kind": "sequence", "direction": "forward",
+   "provenance": "inferred",
+   "evidence": ["prst=rightArrow", "rot=0", "flipH=0"],
+   "status": "unconfirmed"
+  }
+ ],
+
+ "groups": [
+  {
+   "id": "g01", "label": "构建段",
+   "members": ["e01", "e02"],
+   "provenance": "original",
+   "evidence": ["p:grpSp#5"]
+  }
+ ],
+
+ "layout": [
+  {
+   "id": "s01", "for": "e01",
+   "kind": "roundrect", "prst": "roundRect",
+   "box": [100.0, 400.0, 200.0, 80.0],
+   "fill": "DCE9F7",
+   "line": {"color": "2E75B6", "pt": 0.5, "dash": "solid"},
+   "text": {"runs": ["测试环境"], "font_pt": 8.0, "face": "微软雅黑", "align": "ctr"},
+   "rot": 0, "z": 10,
+   "provenance": "measured",
+   "evidence": ["p:sp#12@xfrm"]
+  },
+  {
+   "id": "s02", "for": "e02",
+   "kind": "roundrect", "prst": "roundRect",
+   "box": [400.0, 400.0, 200.0, 80.0],
+   "fill": "DCE9F7",
+   "line": {"color": "2E75B6", "pt": 0.5, "dash": "solid"},
+   "text": {"runs": ["制品库"], "font_pt": 8.0, "face": "微软雅黑", "align": "ctr"},
+   "rot": 0, "z": 10,
+   "provenance": "measured",
+   "evidence": ["p:sp#13@xfrm"]
+  },
+  {
+   "id": "s03", "for": "e03",
+   "kind": "roundrect", "prst": "roundRect",
+   "box": [700.0, 400.0, 200.0, 80.0],
+   "fill": "DCE9F7",
+   "line": {"color": "2E75B6", "pt": 0.5, "dash": "solid"},
+   "text": {"runs": ["预发布环境"], "font_pt": 8.0, "face": "微软雅黑", "align": "ctr"},
+   "rot": 0, "z": 10,
+   "provenance": "measured",
+   "evidence": ["p:sp#14@xfrm"]
+  },
+  {
+   "id": "s04", "for": "r01",
+   "kind": "line",
+   "p1": [300.0, 440.0], "p2": [400.0, 440.0],
+   "line": {"color": "333333", "pt": 0.75, "dash": "solid"},
+   "arrow": "end",
+   "z": 20,
+   "provenance": "measured",
+   "evidence": ["p:cxnSp#20"]
+  },
+  {
+   "id": "s05", "for": "r02",
+   "kind": "line",
+   "p1": [600.0, 440.0], "p2": [700.0, 440.0],
+   "line": {"color": "333333", "pt": 0.75, "dash": "solid"},
+   "arrow": "end",
+   "z": 20,
+   "provenance": "inferred",
+   "evidence": ["prst=rightArrow", "box=600,415,100,50"]
+  },
+  {
+   "id": "s06", "for": "g01",
+   "kind": "brace", "prst": "leftBrace",
+   "box": [80.0, 390.0, 20.0, 100.0],
+   "fill": null,
+   "line": {"color": "404040", "pt": 0.5, "dash": "solid"},
+   "rot": 0, "z": 5,
+   "provenance": "measured",
+   "evidence": ["p:sp#30"]
+  }
+ ],
+
+ "changes": [
+  {
+   "at": "2026-10-08T23:30:00+08:00", "round": 1, "target": "e01.text",
+   "from": "开发环境", "to": "测试环境", "by": "user",
+   "reason": "原件写「开发环境」却站在测试环境上方，用户确认改为「测试环境」",
+   "evidence_ref": "u002"
+  }
+ ],
+
+ "open_questions": [
+  {
+   "id": "q01", "about": ["r02"],
+   "ask": "C10 和 C11 算一条关系还是两条？",
+   "if_wrong": "关系数会在 10 和 11 之间变，重画时会多画或少画一个箭头",
+   "default": "按一条处理",
+   "status": "asked"
+  }
+ ],
+
+ "findings": [
+  {
+   "id": "f01", "kind": "original_error",
+   "what": "步骤 6 写「开发环境」，但它站在测试环境上方",
+   "evidence": ["p:sp#12", "对照下方环境条"],
+   "handling": "原样照抄并告知用户；用户确认后改为「测试环境」"
+  }
+ ],
+
+ "unsupported": [
+  {
+   "what": "自由曲线图标", "name": "Shape 40",
+   "reason": "FREEFORM 画不出来",
+   "handled": "列入清单告知用户，不假装画上"
+  }
+ ]
+}
