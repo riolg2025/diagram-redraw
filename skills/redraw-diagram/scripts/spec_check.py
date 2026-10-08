@@ -142,6 +142,11 @@ def check(spec):
         elif f not in meaning_ids:
             p.add(at + ".for", "指向不存在的东西：%r" % f)
         kind = _enum(p, at + ".kind", s.get("kind"), LAYOUT_KINDS)
+        # ★ z（叠放次序）是**必须**的。实测栽过：漏了它的条目按 0 排，
+        #   会被后面的不透明形状整个盖住 —— 位置文字全对，就是看不见，
+        #   而 Check A 只查位置文字，结构上发现不了。
+        if s.get("z") is None:
+            p.add(at + ".z", "缺少 z（叠放次序）：没有它就保证不了画的次序和原件一致")
         if kind == "verbatim" and not s.get("src"):
             p.add(at + ".src", "kind=verbatim（原样搬运）必须给 src（要搬的那份 XML）")
         has_box = "box" in s

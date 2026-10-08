@@ -150,6 +150,7 @@ def main():
                   "p1": [round(o["p1"][0] - ox, 1), round(o["p1"][1] - oy, 1)],
                   "p2": [round(o["p2"][0] - ox, 1), round(o["p2"][1] - oy, 1)],
                   "arrow": o.get("line", {}).get("arrow") or "end",
+                  "z": o.get("z", 0),
                   "provenance": "measured", "evidence": o.get("evidence") or []}
             # ★ rot 必须带上。实测栽过：原件那条折线是 rot=270°，
             #   漏掉它 → 折线拐反、**两端也落在错的地方**
@@ -170,8 +171,12 @@ def main():
             continue
 
         if o.get("kind") == "verbatim":
+            # ★ z 必须带！实测栽过：漏了它，8 个图标按 z=0 排到最底层，
+            #   被 4 个灰色底框**完全盖住** —— 用户打开 PPT 说"图标没有"。
+            #   位置、形状、颜色全对，就是看不见。
             layout.append({"id": lid, "for": owner, "kind": "verbatim",
                            "box": nb, "src": o["xml"],
+                           "z": o.get("z", 0),
                            "provenance": "measured",
                            "evidence": o.get("evidence") or []})
             continue

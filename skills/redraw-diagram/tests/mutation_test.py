@@ -97,6 +97,9 @@ MUTATIONS = [
     _mut("⑧ changes.by 非法",
          lambda s: s["changes"][0].__setitem__("by", "robot")),
 
+    _mut("⑩ 少了 z（叠放次序）",
+         lambda s: s["layout"][0].pop("z", None)),
+
     _mut("⑩ verbatim 没给 src",
          lambda s: s["layout"].append({
              "id": "s98", "for": "e01", "kind": "verbatim",

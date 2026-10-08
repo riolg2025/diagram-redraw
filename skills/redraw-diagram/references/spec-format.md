@@ -160,7 +160,9 @@ changes[]      += {from:"", to:"审批", by:"user", ...}
       // lines = 段落（每个字符串是一段）。⚠️ 不是 DrawingML 的 "run"（段内文本块）
       "text": { "lines": ["下单"], "font_pt": 8, "face": "微软雅黑", "align": "ctr" },
       "rot": 0,
-      "z": 10,
+      "z": 10,                    // 叠放次序 —— **必须给**。漏了它，条目会按 0 排，
+                                  //   可能被后面的不透明形状整个盖住：位置文字全对，
+                                  //   但**看不见**（实测栽过：8 个图标被灰底框盖住）
       "provenance": "measured",
       "evidence": ["p:sp#12@xfrm"]
     }

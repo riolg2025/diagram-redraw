@@ -88,6 +88,33 @@ def close(a, b, tol=BOX_TOL_PX):
     return abs(a - b) <= tol
 
 
+def check_occlusion(spec):
+    """有没有对象被**完全盖住**。
+
+    ★ 叠放次序错了的东西，位置、文字、颜色**全对** —— 唯一的症状是"看不见"。
+      实测栽过：8 个搬运图标排在 4 个灰色底框前面（z 漏了），
+      用户打开 PPT 说"图标没有"，而 Check A 一路绿灯。
+    """
+    items = sorted([it for it in spec.get("layout") or [] if it.get("box")],
+                   key=lambda s: s.get("z") or 0)
+    problems = []
+    for i, a in enumerate(items):
+        ax, ay, aw, ah = a["box"]
+        if aw <= 0 or ah <= 0:
+            continue
+        for b in items[i + 1:]:
+            if not b.get("fill") or b.get("fill") == "none":
+                continue                    # 只有**不透明**的才盖得住
+            bx, by, bw, bh = b["box"]
+            if (bx <= ax and by <= ay
+                    and bx + bw >= ax + aw and by + bh >= ay + ah):
+                problems.append(("被完全盖住", a["id"],
+                                 "%s（z=%s）被 %s（z=%s）整个盖住了"
+                                 % (a["id"], a.get("z"), b["id"], b.get("z"))))
+                break
+    return problems
+
+
 def check_svg(spec, svg_path):
     """Check A 的**另一半**：输出里的 SVG 跟清单对得上吗。
 
@@ -222,12 +249,27 @@ def main():
     print("  输出里的形状       %d" % len(slide.shapes))
     print("  对上账的           %d" % checked)
     print()
+
     if problems:
-        print("✗ 不一致 %d 处：" % len(problems))
+        print("✗ PPTX 和清单对不上，%d 处：" % len(problems))
         for sid, msg in problems:
             print("   %-14s %s" % (sid, msg))
-        return 1
-    print("✓ 全部对得上——执行没有走样")
+        print()
+    else:
+        print("✓ PPTX 和清单逐个对得上")
+        print()
+
+    # 遮挡：叠放次序错了的东西，位置文字全对，唯一症状是"看不见"
+    occ = check_occlusion(spec)
+    if occ:
+        print("✗ 有 %d 个对象被完全盖住（位置文字都对，但**看不见**）：" % len(occ))
+        for _k, iid, why in occ[:6]:
+            print("   %s" % why)
+        if len(occ) > 6:
+            print("   … 还有 %d 个" % (len(occ) - 6))
+        print()
+        problems = list(problems) + list(occ)
+
     if args.svg:
         svg_problems, n_have, n_want = check_svg(spec, args.svg)
         print("SVG 里的元素        %d" % n_have)
@@ -243,11 +285,16 @@ def main():
             for k, v in seen.items():
                 if v > 8:
                     print("   %-14s … 还有 %d 处" % (k, v - 8))
-            problems += svg_problems
+            problems = list(problems) + list(svg_problems)
         else:
             print()
             print("✓ SVG 和清单逐个对得上")
         print()
+
+    if problems:
+        print("✗ 合计 %d 处问题 —— 执行有走样" % len(problems))
+        return 1
+    print("✓ PPTX / SVG / 叠放次序 三边都对得上——执行没有走样")
 
     if args.verbose:
         print()
