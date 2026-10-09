@@ -85,6 +85,22 @@ def theme_colors(pptx_path):
             v = next((c.get('val') for c in e.iter() if c.get('val')), None)
             if v:
                 out[key] = v
+        # ★ bg1 / tx1 / bg2 / tx2 **不在 clrScheme 里** —— 它们是**别名**，
+        #   映射表在母版的 `p:clrMap` 上（bg1→lt1 之类）。
+        #   不做这一步，`schemeClr val="bg1"` 就解析不出来。
+        #   （实测：不做的话 32 处会掉进"找不到"，靠新加的告警才发现。）
+        for n in z.namelist():
+            if not (n.startswith("ppt/slideMasters/slideMaster")
+                    and n.endswith(".xml")):
+                continue
+            root = etree.fromstring(z.read(n))
+            cm = next((e for e in root.iter()
+                       if e.tag.rsplit('}', 1)[-1] == 'clrMap'), None)
+            if cm is not None:
+                for k, v in cm.attrib.items():
+                    if k not in out and v in out:
+                        out[k] = out[v]
+            break
     except Exception:
         pass
     return out
@@ -239,7 +255,7 @@ def cnv_name(el):
     return e.get('name') if e is not None else None
 
 
-def ln_props(el):
+def ln_props(el, scheme=None):
     """线条：宽度、虚线、**XML 里的显式颜色**（没写就是 None，表示继承主题）。
 
     还读两样实测踩过的东西：
@@ -279,48 +295,83 @@ def ln_props(el):
             return base
         sc = sf.find(A + 'schemeClr')
         if sc is not None:
-            base["src"] = "scheme"
+            # ★ 主题色描边要**解析**它，既不许丢、也不许采。
+            #   原来这里 color 留 None，而下面的采样条件只认 default/unset，
+            #   于是 schemeClr 的边框被**静默丢掉**（实测造用例复现过）。
+            hexv, unk = apply_color_mods((scheme or {}).get(sc.get('val')), sc)
+            base["src"] = "scheme" if hexv else "scheme_unresolved"
             base["scheme"] = sc.get('val')
+            base["unknown_mods"] = unk
+            if hexv:
+                base["color"] = hexv
             return base
     base["src"] = "unset"
     return base
 
 
-def fill_of(el):
-    """填充：显式色 / 主题色 / 无色 / 没写。"""
+def fill_of(el, scheme=None):
+    """填充。**每一种情况都必须是不同的状态** —— 不能都落到 color=None。
+
+    ★ 这里原来把三件不同的事挤进了同一个 color=None：
+        · 真的没写填充        （unset）
+        · 渐变 / 图案 / 图片填充（也是 unset！）→ 会被"采成一个平色"，等于把
+          渐变**假装成**纯色画出去
+        · 主题色              （scheme）      → 不去解析，反而去采样
+      实测：造一页 gradFill，观察器吐出来和"没写填充"一模一样。
+    """
     sp = _first_local(el, 'spPr')      # ★ p:spPr，不是 a:spPr
     if sp is None:
         return {"color": None, "src": "nospPr"}
     if sp.find(A + 'noFill') is not None:
         return {"color": None, "src": "nofill"}
+    # ★ 渐变 / 图案 / 图片：**单独的状态**，不许和"没写"混在一起
+    for tag in ('gradFill', 'pattFill', 'blipFill', 'grpFill'):
+        if sp.find(A + tag) is not None:
+            return {"color": None, "src": tag.replace('Fill', ''), "what": tag}
     sf = sp.find(A + 'solidFill')
     if sf is None:
-        return {"color": None, "src": "unset"}
+        # 没写 fill 元素：主题给了就是主题的，没给就是**没有填充**
+        return {"color": None,
+                "src": "themefill" if has_theme_fill(el) else "nofill"}
     c = sf.find(A + 'srgbClr')
     if c is not None:
         return {"color": c.get('val'), "src": "xml"}
     s = sf.find(A + 'schemeClr')
     if s is not None:
-        return {"color": None, "src": "scheme", "scheme": s.get('val')}
+        # ★ 主题色是**明写的**，只是要查主题表 —— 和文字色同一条规矩。
+        hexv, unk = apply_color_mods((scheme or {}).get(s.get('val')), s)
+        return {"color": hexv, "src": "scheme" if hexv else "scheme_unresolved",
+                "scheme": s.get('val'), "unknown_mods": unk}
     return {"color": None, "src": "other"}
 
 
-def font_of(el):
+def font_of(el, scheme=None):
+    """字号 / 字体。
+
+    ★ 原来只读**第一个 `<a:r>` 的 rPr`**。可是字号常常写在 `a:defRPr` 里
+      （段落默认），这样就读成 None —— 而下游把 None 静默变成 10pt / 微软雅黑。
+      实测：造一个只在 defRPr 里写 sz=9900 的形状，观察器给出 {pt:None, face:None}。
+
+      和 text_color_of 保持一致：**rPr 和 defRPr 都看**。
+      两个都读不到就如实标 unknown，让下游去报，**不许静默填默认值**。
+    """
     tb = _first(el, P + 'txBody')
     if tb is None:
-        return {"pt": None, "face": None}
-    r = tb.find('.//' + A + 'r')
-    rPr = r.find(A + 'rPr') if r is not None else None
-    if rPr is None:
-        return {"pt": None, "face": None}
-    pt = int(rPr.get('sz')) / 100.0 if rPr.get('sz') else None
-    face = None
-    for tag in ('latin', 'ea'):
-        e = rPr.find(A + tag)
-        if e is not None and e.get('typeface'):
-            face = e.get('typeface')
-            break
-    return {"pt": pt, "face": face}
+        return {"pt": None, "face": None, "src": "none"}
+    pt = face = None
+    for tag in ('rPr', 'defRPr'):
+        for rPr in tb.iter(A + tag):
+            if pt is None and rPr.get('sz'):
+                pt = int(rPr.get('sz')) / 100.0
+            if face is None:
+                for t in ('latin', 'ea'):
+                    e = rPr.find(A + t)
+                    if e is not None and e.get('typeface'):
+                        face = e.get('typeface')
+                        break
+    if pt is None and face is None:
+        return {"pt": None, "face": None, "src": "unknown"}
+    return {"pt": pt, "face": face, "src": "xml"}
 
 
 def text_color_of(el, scheme=None):
@@ -381,6 +432,19 @@ def text_color_sample(img, box, fill_hex, tol=110):
         if sum(abs(a - b) for a, b in zip(px, ref)) > tol:
             return "%02X%02X%02X" % px
     return None
+
+
+def has_theme_fill(el):
+    """主题有没有给这个形状指定填充（`p:style/a:fillRef idx != 0`）。
+
+    和描边是同一个分水岭：没写 fill 元素 ≠ 没有填充，
+    还要看主题给没给。
+    """
+    for st in el.iter(P + 'style'):
+        for r in st.iter(A + 'fillRef'):
+            if (r.get('idx') or "0") not in ("0", ""):
+                return True
+    return False
 
 
 def has_theme_line(el):
@@ -497,6 +561,7 @@ def main():
     canvas = [emu_to_px(prs.slide_width), emu_to_px(prs.slide_height)]
     scheme = theme_colors(args.pptx)
     color_warnings = []
+    degrade = []          # 表达不了、**不许假装**的那些（渐变填充 / 自由曲线…）
 
     media_dir = args.media_dir or (os.path.splitext(os.path.abspath(args.out))[0] + ".media")
     os.makedirs(media_dir, exist_ok=True)
@@ -599,20 +664,36 @@ def main():
                 continue
 
             # ---- 其余：形状 ----
-            fl = fill_of(el)
-            # 只要没拿到颜色（继承主题 / 没写），就从渲染图上采。
-            # 除了 nofill —— 那是**明确说没有填充**，不该给它硬采一个。
-            if fl["color"] is None and fl["src"] != "nofill" and ren is not None:
+            fl = fill_of(el, scheme)
+            if fl["src"] in ("grad", "patt", "blip", "grp"):
+                # ★ 渐变 / 图案 / 图片填充**画不了** —— 不许采成一个平色假装是纯色。
+                #   原来它和"没写填充"共用 unset，会被采成平色：**把渐变假装成纯色**。
+                degrade.append("%s: 用了 %s，第一版画不了（不假装成纯色）"
+                               % (oid, fl.get("what") or fl["src"]))
+            elif fl["color"] is None and fl["src"] in ("unset", "themefill",
+                                                       "other") and ren is not None:
+                # 这几种才该去渲染图采：主题给了但没写死 / 写了但读不出的形式
                 mf = mode_fill(ren, box)
                 if mf:
                     fl = {"color": mf, "src": "sampled"}
+            if fl["src"] == "scheme_unresolved":
+                color_warnings.append("%s: 填充的主题色 %s 在原件主题里找不到，已采样兜底"
+                                      % (oid, fl.get("scheme")))
+                if ren is not None:
+                    mf = mode_fill(ren, box)
+                    if mf:
+                        fl = {"color": mf, "src": "sampled_unresolved"}
 
-            ln = ln_props(el)
+            ln = ln_props(el, scheme)
             if ln.get("src") == "default" and not has_theme_line(el):
                 # ★ 没有 <a:ln>、主题也没给 lnRef → **原件没有边框**。
                 #   以前这里会继续往下走去采样，把文字/填充当成了边框色。
                 ln = dict(ln, src="noborder")
-            if ln.get("color") is None and ln.get("src") in ("default", "unset") \
+            if ln.get("src") == "scheme_unresolved":
+                color_warnings.append("%s: 描边的主题色 %s 在原件主题里找不到"
+                                      % (oid, ln.get("scheme")))
+            if ln.get("color") is None and ln.get("src") in ("default", "unset",
+                                                             "scheme_unresolved") \
                     and ren is not None:
                 cands = []
                 for k in range(1, 10):
@@ -630,8 +711,15 @@ def main():
                 if fg.get("unknown_mods"):
                     color_warnings.append("%s: 文字色的修饰符 %s 没算，可能不准"
                                           % (oid, ",".join(fg["unknown_mods"])))
+                if fg["src"] == "scheme_unresolved":
+                    # ★ 原来这里**一声不响**：color 是 None，采样条件又不含
+                    #   scheme_unresolved，于是下游静默把它变成 333333。
+                    color_warnings.append(
+                        "%s: 文字色的主题色 %s 在原件主题里找不到" % (oid, fg.get("scheme")))
                 # 只有 **XML 里压根没写颜色** 才去渲染图采
-                if fg["color"] is None and fg["src"] in ("unset",) and ren is not None:
+                if fg["color"] is None and fg["src"] in ("unset",
+                                                         "scheme_unresolved") \
+                        and ren is not None:
                     sampled = text_color_sample(ren, box, fl.get("color"))
                     if sampled:
                         fg = {"color": sampled, "src": "sampled"}
@@ -644,7 +732,7 @@ def main():
 
             shapes.append(dict(base, kind=shape_kind,
                                fill=fl, line=ln,
-                               font=font_of(el), insets=insets_of(el),
+                               font=font_of(el, scheme), insets=insets_of(el),
                                para=para_of(el), fg=fg))
 
     walk(slide.shapes, GroupCtx((0, 0), (1.0, 1.0), (0, 0)), [])
@@ -665,6 +753,7 @@ def main():
         "groups": groups,
         "unsupported": unsupported,
         "color_warnings": color_warnings,
+        "degrade": degrade,
         "stats": {
             "shapes": len(shapes),
             "connectors": len(connectors),
@@ -703,6 +792,11 @@ def main():
         print("  ⚠ %d 个形状没有文字：先按「原件故意留空」处理，**不要自己填名字**，"
               % len(textless))
         print("     除非用户确认那是没画完。见 references/reading-rules.md")
+    if degrade:
+        print()
+        print("  ⚠ 画不了、也没假装画的 %d 处：" % len(degrade))
+        for d in degrade[:5]:
+            print("     - %s" % d)
     if color_warnings:
         print()
         print("  ⚠ 搬运时主题色没解析干净的 %d 处（**没静默放过**）："
