@@ -383,6 +383,23 @@ def text_color_sample(img, box, fill_hex, tol=110):
     return None
 
 
+def has_theme_line(el):
+    """主题有没有给这个形状指定描边（`p:style/a:lnRef idx != 0`）。
+
+    ★ 这是"没写 `<a:ln>`"和"没有边框"之间的分水岭：
+        · 没有 `<a:ln>`、也没有 lnRef  → **原件就是没有边框**
+        · 没有 `<a:ln>`、但有 lnRef    → 主题给了边框（要去渲染图看它长什么样）
+      实测栽过：把前一种也当成"不知道"，去渲染图"找最深的像素"，
+      结果把**文字自己**（或图形自己的填充）当成了边框色，
+      凭空给 4 个形状加上了深色边框。
+    """
+    for st in el.iter(P + 'style'):
+        for r in st.iter(A + 'lnRef'):
+            if (r.get('idx') or "0") not in ("0", ""):
+                return True
+    return False
+
+
 def para_of(el):
     """段落级排版：行距 lnSpc、段前 / 段后距。
 
@@ -591,7 +608,11 @@ def main():
                     fl = {"color": mf, "src": "sampled"}
 
             ln = ln_props(el)
-            if ln.get("color") is None and ln.get("src") != "nofill" \
+            if ln.get("src") == "default" and not has_theme_line(el):
+                # ★ 没有 <a:ln>、主题也没给 lnRef → **原件没有边框**。
+                #   以前这里会继续往下走去采样，把文字/填充当成了边框色。
+                ln = dict(ln, src="noborder")
+            if ln.get("color") is None and ln.get("src") in ("default", "unset") \
                     and ren is not None:
                 cands = []
                 for k in range(1, 10):
