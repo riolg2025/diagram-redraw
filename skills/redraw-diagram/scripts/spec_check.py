@@ -17,8 +17,12 @@ spec_check.py —— 校验「清单」（spec.json）自洽。
 
 import argparse
 import json
+import os
 import sys
 from collections import Counter, defaultdict
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from common import wrap_text  # noqa: E402
 
 SPEC_VERSION = "0.2"
 
@@ -61,6 +65,48 @@ class Problems:
 
     def __len__(self):
         return len(self.items)
+
+
+def _text_fit(p, spec):
+    """文字放不放得下自己的框 —— B 类版面失控。
+
+    ★ 和 build_output 里 SVG 的折行**共用同一份宽度模型**（common.py 的 wrap_text）。
+      各写一份的话，就会出现"检查说放得下、画出来放不下"这种漂移
+      —— 这个项目已经在别处栽过好几次了。
+
+    ★ 为什么这条算 B 而不是 A：**文字跑出自己的框 = 版面失控**，
+      不是"好不好看"。而且判据是**我们自己声明的东西之间自不自洽**，
+      **不需要原件当基准**。
+    """
+    DPI = 150.0
+    for it in spec.get("layout") or []:
+        t = it.get("text") or {}
+        b = it.get("box")
+        if not t.get("lines") or not isinstance(b, list) or len(b) != 4:
+            continue
+        ins = t.get("insets") or [15.0, 7.5, 15.0, 7.5]
+        pt = float(t.get("font_pt") or 10.0)
+        avail_w = max(1.0, b[2] - float(ins[0]) - float(ins[2]))
+        avail_h = max(1.0, b[3] - float(ins[1]) - float(ins[3]))
+        n = 0
+        for one in t["lines"]:
+            n += (len(wrap_text(str(one), avail_w, pt)) if t.get("wrap", True) else 1)
+        ppm = DPI / 72.0
+        # 行高：清单里给了 lnSpc 就用它，没给按 1.2 倍
+        lh = pt * (float(t.get("lnspc") or 120000) / 100000.0) * ppm
+        # ★ 高度公式是**量出来的**，不是拍的。在原件渲染图上量了 6 个文本框：
+        #     单行 18pt → 墨迹 32px   （预测 (1-1)*lh + 0.85*18*2.083 = 31.9 ✓）
+        #     两行  8pt → 墨迹 35px   （预测 (2-1)*20.0 + 14.2      = 34.2 ✓）
+        #   所以：**首行只占字高，每多一行再加一个行距。**
+        cap = 0.85 * pt * ppm
+        need = (n - 1) * lh + cap
+        # 余量：公式是估算，实测误差在 5% 字高上下（真清单里最大的两个只超 1.8px）。
+        # 余量取 0.35 个字高 —— 明显溢出（差一整行）照样抓得到。
+        if need > avail_h + 0.35 * pt * ppm:
+            p.add("layout[%s].text" % it.get("id"),
+                  "文字放不下：折行后 %d 行需要 %.0fpx，框内只有 %.0fpx"
+                  "（超 %.0fpx）—— 会溢出自己的框"
+                  % (n, need, avail_h, need - avail_h))
 
 
 def _overlap(p, spec):
@@ -258,6 +304,9 @@ def check(spec):
     #   已有的：出界（第 5 步）、被完全盖住（check_a 的遮挡检查）。
     #   这里补**部分重叠**：谁也不是谁的容器，却互相压住。
     _overlap(p, spec)
+
+    # ---- 5.6 B 类：文字放不下自己的框 ----------------------------------
+    _text_fit(p, spec)
 
     # ---- 9. changes 是追加型 -------------------------------------------
     for i, c in enumerate(spec.get("changes") or []):

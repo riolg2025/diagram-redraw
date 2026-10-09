@@ -128,6 +128,55 @@ def lum(hexcolor):
 SPEC_VERSION = "0.1"
 
 
+# --------------------------------------------------------------------------
+# 文字宽度估算 / 折行
+# --------------------------------------------------------------------------
+# **为什么必须自己折行**：SVG 的 <text> **不会自动换行**，PPTX 会。
+# SVG 侧不折行，长句就直接冲出框 —— 实测两句话叠在一行（用户发现的）。
+#
+# ⚠️ 这是**估算**，不是量出来的。宁可估宽一点（早换行），不要估窄（溢出）。
+_EM = {True: 1.0, False: 0.52}        # 全角 / 半角，单位是 em
+
+
+def _is_wide(ch):
+    return ord(ch) > 0x2E7F            # 中日韩 + 全角标点
+
+
+def text_width_px(s, font_pt, dpi=None):
+    """估一行字有多宽（像素）。"""
+    if not s:
+        return 0.0
+    em = sum(_EM[_is_wide(c)] for c in s)
+    return em * float(font_pt or 10.0) * (dpi or DEFAULT_DPI) / 72.0
+
+
+def wrap_text(s, max_px, font_pt, dpi=None):
+    """按估算宽度折行，返回折好的每一行。
+
+    中日韩可以逐字断；西文尽量在空格处断，断不了才硬断。
+    """
+    if not s:
+        return [""]
+    per_pt = (dpi or DEFAULT_DPI) / 72.0
+    out, cur, w = [], "", 0.0
+    for ch in s:
+        cw = _EM[_is_wide(ch)] * float(font_pt or 10.0) * per_pt
+        if cur and w + cw > max_px:
+            if not _is_wide(ch) and " " in cur:
+                cut = cur.rfind(" ")
+                out.append(cur[:cut])
+                cur = cur[cut + 1:] + ch
+                w = text_width_px(cur, font_pt, dpi)
+            else:
+                out.append(cur)
+                cur, w = ch, cw
+        else:
+            cur += ch
+            w += cw
+    out.append(cur)
+    return out
+
+
 def save_spec(spec, path):
     spec.setdefault("spec_version", SPEC_VERSION)
     with open(path, "w", encoding="utf-8") as f:

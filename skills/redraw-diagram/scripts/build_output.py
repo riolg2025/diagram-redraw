@@ -28,6 +28,9 @@ import sys
 
 from lxml import etree
 from pptx import Presentation
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from common import wrap_text  # noqa: E402
 from pptx.dml.color import RGBColor
 from pptx.enum.dml import MSO_LINE_DASH_STYLE
 from pptx.enum.shapes import MSO_CONNECTOR, MSO_SHAPE
@@ -530,12 +533,33 @@ def build_svg(spec, path):
                      'fill="%s"%s%s/>' % (iid, x, y, w, h, fill, stroke, tr))
 
         if t.get("lines"):
-            lines = [str(v) for v in t["lines"]]
+            # ★ SVG 的 <text> **不会自动换行**，得自己折。
+            #   以前不折，长句直接冲出框 → 两句话叠在一行（用户发现的）。
+            #   折行的模型和 spec_check 里"文字放不放得下"的那条**共用同一份**，
+            #   不然后面又会"两个实现各说各话"。
+            raw = [str(v) for v in t["lines"]]
             sz = (t.get("font_pt") or 10) * PT2PX
+            ins = t.get("insets") or [15.0, 7.5, 15.0, 7.5]
+            avail = max(20.0, w - float(ins[0]) - float(ins[2]))
+            lines = []
+            for one in raw:
+                if t.get("wrap", True):
+                    lines += wrap_text(one, avail, t.get("font_pt") or 10)
+                else:
+                    lines.append(one)
             al = {"ctr": "middle", "l": "start", "r": "end"}.get(t.get("align") or "ctr",
                                                                  "middle")
             cx = x + w / 2 if al == "middle" else (x + 6 if al == "start" else x + w - 6)
-            y0 = y + h / 2 - (len(lines) - 1) * sz * 0.58 + sz * 0.35
+            # 竖直锚点也要按清单来（原来一律居中）
+            total = (len(lines) - 1) * sz * 1.2 + sz
+            anc = t.get("anchor") or "ctr"
+            if anc == "t":
+                top = y + float(ins[1])
+            elif anc == "b":
+                top = y + h - float(ins[3]) - total
+            else:
+                top = y + h / 2 - total / 2
+            y0 = top + sz * 0.85
             o.append(svg_text(cx, y0, lines, t, face, al, iid))
 
     o.append("</svg>")
