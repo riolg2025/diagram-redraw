@@ -43,7 +43,14 @@ def _rgb(h):
         return None
 
 
-def _near(a, b, tol=12):
+def _near(a, b, tol=5):
+    """两个颜色是不是"其实同一个"。
+
+    ⚠️ 阈值 5 是**有意选的**，不是随手写：
+        差 ≤5  基本看不出差别，多半是手滑定成了两个值      → 算重复
+        差 ≥6  开始能看出是**有意的深浅**（容器更浅、卡片更实）→ 不算重复
+    一开始我写的是 12，结果把"有意的 7 级灰差"也报成了重复 —— 阈值太宽。
+    """
     ra, rb = _rgb(a), _rgb(b)
     return bool(ra and rb and max(abs(x - y) for x, y in zip(ra, rb)) <= tol)
 
@@ -108,6 +115,16 @@ def c_line(spec, R):
         R("线宽不一致", "多数是 %.2fpt，这 %d 条不是：%s"
           % (main, len(odd), ", ".join(odd[:8])),
           "同类的线应当一样粗（粗细不同会让人以为是不同含义）", warn=True)
+    # ★ 线条**颜色**也要查。我第一版漏了这条，结果自己撞出来：
+    #   C10 那两条折线用的是 0056D1，其他 9 条是 0084CF —— 两种蓝、两种粗细，
+    #   看起来就像"这是两类不同的关系"。
+    lc = Counter((it.get("line") or {}).get("color") for it in ls)
+    if len(lc) > 1:
+        main = lc.most_common(1)[0][0]
+        odd = [it["id"] for it in ls if (it.get("line") or {}).get("color") != main]
+        R("线条颜色不一致", "多数是 #%s，这 %d 条不是：%s"
+          % (main, len(odd), ", ".join(odd[:8])),
+          "同类的线应当同色（颜色不同会让人以为是不同含义）", warn=True)
     a = Counter((it.get("arrow"), it.get("arrow_type")) for it in ls)
     if len(a) > 1:
         R("箭头不一致", "%s" % dict(a), "同类关系箭头应当一致", warn=True)
