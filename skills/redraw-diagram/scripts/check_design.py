@@ -29,6 +29,7 @@ import sys
 from collections import Counter, defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from common import wrap_text, line_polyline, pt_poly_dist  # noqa: E402
 
 
 def load(p):
@@ -175,6 +176,116 @@ def c_color(spec, R):
           "技术图一般控制在 6–8 种以内", warn=True)
 
 
+def _pt_seg_dist(p, a, b):
+    ax, ay = a; bx, by = b; px, py = p
+    dx, dy = bx - ax, by - ay
+    L = dx * dx + dy * dy
+    if L == 0:
+        return ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / L))
+    cx, cy = ax + t * dx, ay + t * dy
+    return ((px - cx) ** 2 + (py - cy) ** 2) ** 0.5
+
+
+def c_label_center(spec, R):
+    """说明文字要落在**它标注的那条线**上（横向居中）。
+
+    ★ 用户看标号图发现的：T6–T9 和 C6–C9 一一对应却没居中；T3 和 C2 也没居中。
+      量出来 9 对里偏了 5 对（T6 −16.8、T8 −25.3、T5 +11.8、T2 −9.4、T3 −8.2）。
+
+    ⚠️ 折线（bentConnector）**不能拿包围盒中点当中心** —— L 形的中心不在路径上。
+      所以这里算的是"标签中心到**路径**的最近距离"。
+    """
+    L = spec["layout"]
+    skipped = set()
+    lines = defaultdict(list)
+    for it in L:
+        if it.get("kind") == "line":
+            lines[it.get("for")].append(it)
+    for it in L:
+        t = it.get("text") or {}
+        if not t.get("lines") or not it.get("box"):
+            continue
+        # ★ 用清单里写明的 `annotates`，**不去猜"最近的线"** ——
+        #   猜就是"机械猜意义"，这个项目在关系端点上栽过一次（10 条错 5 条）。
+        segs = lines.get(it.get("annotates"))
+        if not segs:
+            continue
+        # ★ 只对**单段直线**严格查。
+        #   折线/多段（比如 C10 由两段拼成、标签正好落在中间的缺口里）
+        #   本来就不该"落在线上" —— 拿这条去套会得出"离线 42px"的假警报。
+        #   ⚠️ 也就是说折线类的标注**现在没人查**，如实记下来。
+        if len(segs) != 1 or (segs[0].get("prst") or "straightConnector1") \
+                != "straightConnector1":
+            skipped.add(it.get("annotates"))
+            continue
+        b = it["box"]
+        c = (b[0] + b[2] / 2.0, b[1] + b[3] / 2.0)
+        # ★ 用**实际折线路径**，不是 p1→p2 那条对角线。
+        #   折线是 L 形，拿对角线算距离会得出"离线 103px"这种假警报。
+        d = min(pt_poly_dist(c, line_polyline(s)) for s in segs)
+        if d > 6.0:
+            R("标注没居中", "%s（%s）的中心离线 %.1f px" % (it["id"], it.get("annotates"), d),
+              "说明文字应当落在它标注的那条线上", warn=True)
+    if skipped:
+        R("（折线标注没查）", "这些关系是折线或多段，跳过了：%s"
+          % "、".join(sorted(x for x in skipped if x)),
+          "折线没有唯一的中轴，规则不好定 —— 这一档暂时没人查")
+
+
+def c_text_padding(spec, R):
+    """文字离框边够不够 —— 用**量出来的**墨迹高度模型。
+
+    ★ 用户看标号图发现的：N1/N4 因为文字换行，上下很挤。
+      实测：它们上下只留 7/5 px，而别的框是 15–30 px。
+      （B 类的"放不下"查不出这个 —— 它确实**放得下**，只是难看。）
+
+    墨迹高度 = (行数-1) × 行距 + 0.88 × 字号
+      0.88 是在原件渲染图上量的：18pt 单行→30px(0.80)、12pt 单行→21px(0.85)、
+      16pt 两行→70px(算出来 69.3) —— 取 0.88 偏保守一点。
+    """
+    DPI = 150.0
+    for it in spec["layout"]:
+        t = it.get("text") or {}
+        b = it.get("box")
+        if not t.get("lines") or not isinstance(b, list) or len(b) != 4:
+            continue
+        ins = t.get("insets") or [15.0, 7.5, 15.0, 7.5]
+        pt = float(t.get("font_pt") or 10.0)
+        aw = max(1.0, b[2] - float(ins[0]) - float(ins[2]))
+        n = 0
+        for one in t["lines"]:
+            n += (len(wrap_text(str(one), aw, pt)) if t.get("wrap", True) else 1)
+        ppm = DPI / 72.0
+        lh = pt * (float(t.get("lnspc") or 120000) / 100000.0) * ppm
+        ink = (n - 1) * lh + 0.88 * pt * ppm
+        pad = (b[3] - ink) / 2.0
+        if pad < 8.0:
+            R("文字太挤", "%s 折成 %d 行后墨迹 %.0fpx，框高 %.0f，上下只剩 %.1f px"
+              % (it["id"], n, ink, b[3], pad),
+              "文字离上下边不到 8px 会显得挤（改框高或缩字号）", warn=True)
+
+
+def c_inside_container(spec, R):
+    """对象的框不该戳出它所属分组容器的框。"""
+    by = {it["id"]: it for it in spec["layout"]}
+    for g in spec.get("groups") or []:
+        cont = [it for it in spec["layout"]
+                if it.get("for") == g["id"] and it.get("kind") in ("rect", "roundrect")]
+        if not cont:
+            continue
+        cb = cont[0]["box"]
+        for it in spec["layout"]:
+            if it.get("for") != g["id"] or not it.get("box") or it is cont[0]:
+                continue
+            b = it["box"]
+            if (b[0] < cb[0] - 0.5 or b[1] < cb[1] - 0.5
+                    or b[0] + b[2] > cb[0] + cb[2] + 0.5
+                    or b[1] + b[3] > cb[1] + cb[3] + 0.5):
+                R("戳出容器", "%s 的框超出了 %s 的框" % (it["id"], g["id"]),
+                  "容器里的东西不该露出容器外", warn=True)
+
+
 def c_margin(spec, R):
     """画布留白：内容别顶到边上。"""
     cw, ch = spec["source"]["canvas"]
@@ -267,6 +378,8 @@ def c_spacing(spec, R):
 
 
 CHECKS = [("字号", c_font), ("线", c_line), ("内边距", c_padding),
+          ("标注居中", c_label_center), ("文字留白", c_text_padding),
+          ("容器包含", c_inside_container),
           ("颜色", c_color), ("留白", c_margin), ("对齐", c_align),
           ("分组", c_group_pad), ("间距", c_spacing)]
 

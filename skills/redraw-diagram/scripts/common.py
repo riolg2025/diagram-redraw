@@ -12,6 +12,7 @@ common.py —— diagram-redraw 各脚本共用的东西。
 """
 
 import json
+import math
 import os
 from collections import Counter
 
@@ -175,6 +176,85 @@ def wrap_text(s, max_px, font_pt, dpi=None):
             w += cw
     out.append(cur)
     return out
+
+
+# --------------------------------------------------------------------------
+# 连接符（线）的路径
+# --------------------------------------------------------------------------
+# 定义抄自 OOXML 的权威数据（refs/ppt-master/psd.xml）：
+#   straightConnector1  (l,t) → (r,b)
+#   bentConnector2      (l,t) → (r,t) → (r,b)
+#   bentConnector3      (l,t) → (x1,t) → (x1,b) → (r,b)    x1 = w·adj1/100000
+#
+# ★ 放在 common 是因为**两个地方都要用**：
+#     build_output  要照它画 SVG
+#     check_design  要照它算"标注有没有落在这条线上"
+#   各写一份一定会漂 —— 这个项目在别处栽过。
+CONN_PTS = {
+    "straightConnector1": lambda w, h, a: [(0, 0), (w, h)],
+    "bentConnector2": lambda w, h, a: [(0, 0), (w, 0), (w, h)],
+    "bentConnector3": lambda w, h, a: [(0, 0), (w * a, 0), (w * a, h), (w, h)],
+}
+
+
+def conn_box(p1, p2):
+    """从两端推出盒子 + 翻转 —— 和 python-pptx 的 add_connector 同一套算法。"""
+    x, y = min(p1[0], p2[0]), min(p1[1], p2[1])
+    w, h = abs(p2[0] - p1[0]), abs(p2[1] - p1[1])
+    return x, y, w, h, p1[0] > p2[0], p1[1] > p2[1]
+
+
+def map_pts(pts, x, y, w, h, flip_h, flip_v, rot):
+    """局部路径点 → 画布坐标（套翻转和旋转）。
+
+    ★ rot 必须算。实测栽过：原件那条折线是 rot=270°，
+      不算的话折线拐反，**两端也落在错的地方** —— 旋转过的连接符，
+      盒子四角根本不是端点。
+    """
+    cx, cy = x + w / 2.0, y + h / 2.0
+    r = math.radians(rot or 0)
+    co, si = math.cos(r), math.sin(r)
+    out = []
+    for px, py in pts:
+        if flip_h:
+            px = w - px
+        if flip_v:
+            py = h - py
+        px, py = x + px, y + py
+        if rot:
+            dx, dy = px - cx, py - cy
+            px, py = cx + dx * co - dy * si, cy + dx * si + dy * co
+        out.append((px, py))
+    return out
+
+
+def line_polyline(it):
+    """清单里一条 line → 它的**实际路径点**（不只是两端）。
+
+    straightConnector1 是两点；bentConnector2/3 是三点/四点。
+    """
+    p1, p2 = it["p1"], it["p2"]
+    x, y, w, h, fh, fv = conn_box(p1, p2)
+    gen = CONN_PTS.get(it.get("prst") or "straightConnector1", CONN_PTS["straightConnector1"])
+    return map_pts(gen(w, h, 0.5), x, y, w, h, fh, fv, it.get("rot"))
+
+
+def pt_poly_dist(p, pts):
+    """点到折线的最近距离。"""
+    if len(pts) < 2:
+        return float("inf")
+    best = float("inf")
+    for a, b in zip(pts, pts[1:]):
+        ax, ay = a; bx, by = b; px, py = p
+        dx, dy = bx - ax, by - ay
+        L = dx * dx + dy * dy
+        if L == 0:
+            d = ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
+        else:
+            t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / L))
+            d = ((px - (ax + t * dx)) ** 2 + (py - (ay + t * dy)) ** 2) ** 0.5
+        best = min(best, d)
+    return best
 
 
 def save_spec(spec, path):

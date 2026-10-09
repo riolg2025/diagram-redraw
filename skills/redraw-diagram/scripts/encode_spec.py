@@ -160,6 +160,11 @@ def main():
         }
         if it.get("group"):
             e["group"] = it["group"]
+        if it.get("annotates"):
+            # ★ "这句话在说哪条线" 是**层 1 的关系**，不是画法。
+            #   以前没记，于是"标注有没有居中"这种检查根本无从下手 ——
+            #   用户看标号图才发现 T6–T9 和 C6–C9 没居中。
+            e["annotates"] = it["annotates"]
         entities.append(e)
 
     # ---- 层 2：观察对象 → layout，坐标平移到新画布 ---------------------
@@ -246,6 +251,9 @@ def main():
                 prov = "measured"
         txt = o.get("text") or ""
         if txt:
+            _e = next((x for x in entities if x["id"] == owner), None)
+            if _e and _e.get("annotates"):
+                it["annotates"] = _e["annotates"]
             fg = o.get("fg") or {}
             f = o.get("font") or {}
             e = next((x for x in entities if x["id"] == owner), None)
