@@ -257,6 +257,30 @@ def pt_poly_dist(p, pts):
     return best
 
 
+# --------------------------------------------------------------------------
+# 文字：原件一份，用户改的一份，**取哪一个必须有规矩**
+# --------------------------------------------------------------------------
+# 实测踩过的坑：
+#   实体上有 `text`（原件文字）和 `text_user`（用户改的）。
+#   我在两个脚本里分别写了 `text or text_user` 和 `text_user or text`，
+#   **同一个实体得出相反结论** ✗
+#   这是 R3.5 那类病：两个意思挤在一个取值里，靠 `or` 兜底。
+#
+# ★ 规矩：
+#     text        原件文字。**只读**，任何人不许改。
+#     text_user   用户的更正。可选。
+#     当前有效文字 = text_user 有就用它，否则用 text  —— **只准走这个函数**。
+#     需要「原件文字」的场合（Check B 对账）**只用 text**，不许走这里。
+def effective_text(item):
+    """当前该画出来的文字。**不要自己写 `a or b`**。"""
+    if item is None:
+        return ""
+    u = item.get("text_user")
+    if u is not None and str(u).strip():
+        return str(u)
+    return str(item.get("text") or "")
+
+
 def save_spec(spec, path):
     spec.setdefault("spec_version", SPEC_VERSION)
     with open(path, "w", encoding="utf-8") as f:

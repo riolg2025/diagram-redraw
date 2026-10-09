@@ -120,6 +120,19 @@ changes[]      += {from:"", to:"审批", by:"user", ...}
       "role": ["shape"],          // shape|container|relation_carrier|annotation|decoration
       "text": "下单",
       "text_user": null,          // 用户改过的版本（追加，不覆盖 text）
+
+      // ★ R3.6 「原件文字」和「用户改的」是两件事，取哪一个必须有规矩
+      //
+      //   text        原件文字。**只读**，任何人不许改。
+      //   text_user   用户的更正。可选。
+      //   当前有效文字 = text_user 有就用它，否则用 text。
+      //                 —— **只准走 common.effective_text()**，不许自己写 `a or b`
+      //
+      //   需要「原件文字」的场合（Check B 对账）**只用 text**，不许回退到 text_user。
+      //
+      // 为什么写死：实测我在两个脚本里分别写了 `text or text_user` 和
+      // `text_user or text`，**同一个实体得出相反结论** ✗。这是 R3.5 那类病——
+      // 两个意思挤在一个取值里、靠 `or` 兜底。
       "box_src": [752.9, 304.2, 1146.3, 521.0],  // 它在**原件**里的位置
       "group": "g01",
       "provenance": "original",

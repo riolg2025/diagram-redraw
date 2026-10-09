@@ -117,25 +117,31 @@ def extract_pptx_text(path, slide_no, region=None):
 
 
 def spec_texts(spec):
-    """清单里所有"声称有文字"的条目：(id, text, provenance)。
+    """清单里所有"声称有文字"的条目：(id, text, provenance)；外加用户改过的。
 
     ★ 层 1（entities）和层 2（layout）**都要看**。
       实测漏过：绿色条的标题「自动化运维平台能力通道」挂在 layout 上
       （它归属一个分组，不是实体），只查 entities 就会把它误报成"遗漏"。
+
+    ★★ 但对账**只用 `text`（原件文字），绝不回退到 `text_user`**。
+      原先写的是 `e.get("text") or e.get("text_user")` ✗ ——
+      原件文字为空时会拿**用户的更正**去跟原件比，把用户的修改当成"我编的"。
+      「我读对了没有」和「用户改了什么」是**两件事**，分开报。
     """
-    out = []
+    out, corrected = [], []
     for e in spec.get("entities") or []:
-        t = e.get("text") or e.get("text_user")
+        t = e.get("text")                      # ★ 只取原件文字
         if t:
             out.append((e.get("id"), t, e.get("provenance")))
+        if e.get("text_user") and e["text_user"] != t:
+            corrected.append((e.get("id"), t, e["text_user"]))   # 单独记
     for it in spec.get("layout") or []:
         tx = it.get("text") or {}
-        lines = tx.get("lines") or []
-        t = "".join(str(x) for x in lines)
-        if t:
-            # ★ text.prov 优先：一个 layout 条目可能是"几何来自原件、文字被用户改了"。
-            #   不分开的话，用户改过的字会被当成"我编的"。
-            out.append((it.get("id"), t, tx.get("prov") or it.get("provenance")))
+        t = "".join(str(x) for x in (tx.get("lines") or []))
+        prov = tx.get("prov") or it.get("provenance")
+        # ★ prov=user 的文字是**用户改的**，不是"我读的" → 不参与对账
+        if t and prov != "user":
+            out.append((it.get("id"), t, prov))
     # 同一个字符串（实体和它的 layout 各一份）只留一条，免得重复报
     seen, uniq = set(), []
     for i, t, p in out:
@@ -144,7 +150,7 @@ def spec_texts(spec):
             continue
         seen.add(k)
         uniq.append((i, t, p))
-    return uniq
+    return uniq, corrected
 
 
 # --------------------------------------------------------------------------
@@ -179,7 +185,7 @@ def main():
     blob = norm("".join(blocks))
     block_set = {norm(b) for b in blocks}
 
-    items = spec_texts(spec)
+    items, corrected = spec_texts(spec)
     fabricated, spliced = [], []
     for sid, text, prov in items:
         if prov not in FROM_ORIGINAL:
@@ -199,6 +205,10 @@ def main():
         if n and n not in spec_blob:
             missing.append(b)
 
+    if corrected:
+        print("  ★ 用户改过的文字   %d（**不是对账错误**，分开列）" % len(corrected))
+        for cid, old, new in corrected:
+            print("       %-8s 原件 %r → 用户改成 %r" % (cid, old, new))
     print("  原件文字块        %d" % len(blocks))
     print("  清单里带文字的     %d（其中标「来自原件」的 %d）"
           % (len(items),
