@@ -63,6 +63,39 @@ class Problems:
         return len(self.items)
 
 
+def _overlap(p, spec):
+    """两个不透明对象**部分重叠**（谁也不是谁的容器）—— B 类版面失控。
+
+    为什么"包含"不算：容器套住内容、文字压在色块上，都是**正常**的画法。
+    真正不对的是**互相压住**：两个东西都只剩一半露在外面。
+
+    只比非 line 的对象 —— 线穿过方块是正常的。
+    """
+    def okbox(it):
+        b = it.get("box")
+        return (it.get("kind") != "line" and isinstance(b, list) and len(b) == 4
+                and all(isinstance(v, (int, float)) for v in b))
+
+    items = [it for it in spec.get("layout") or [] if okbox(it)]
+    for i, a in enumerate(items):
+        ax, ay, aw, ah = a["box"]
+        for b in items[i + 1:]:
+            bx, by, bw, bh = b["box"]
+            ix = min(ax + aw, bx + bw) - max(ax, bx)
+            iy = min(ay + ah, by + bh) - max(ay, by)
+            if ix <= 1 or iy <= 1:
+                continue
+            inter = ix * iy
+            small = min(aw * ah, bw * bh) or 1
+            if inter >= small * 0.9:
+                continue          # 盖掉九成以上 → 算容器关系，合法
+            if inter < small * 0.5:
+                continue          # 擦个边不算，免得吵
+            p.add("layout[%s]" % a.get("id"),
+                  "和 %s 部分重叠（压住 %.0f%%）—— 版面失控"
+                  % (b.get("id"), 100.0 * inter / small))
+
+
 def check(spec):
     """返回 Problems。空 = 自洽。"""
     p = Problems()
@@ -218,6 +251,13 @@ def check(spec):
                 for r in it.get("role") or []:
                     if r not in ROLES:
                         p.add(at + ".role", "未知取值 %r" % r)
+
+    # ---- 5.5 B 类版面失控：几何冲突 ------------------------------------
+    # ★ B 类 = 版面**失控**（越界 / 冲突）。判据是**版面自身的自洽性**，
+    #   **不需要原件当基准** —— 这正是它能机器查的原因。
+    #   已有的：出界（第 5 步）、被完全盖住（check_a 的遮挡检查）。
+    #   这里补**部分重叠**：谁也不是谁的容器，却互相压住。
+    _overlap(p, spec)
 
     # ---- 9. changes 是追加型 -------------------------------------------
     for i, c in enumerate(spec.get("changes") or []):

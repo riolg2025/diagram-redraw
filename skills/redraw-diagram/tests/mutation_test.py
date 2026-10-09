@@ -97,6 +97,12 @@ MUTATIONS = [
     _mut("⑧ changes.by 非法",
          lambda s: s["changes"][0].__setitem__("by", "robot")),
 
+    # 压掉 80% —— 阈值是 50%（实测真清单里"非容器重叠"最大只到 11.2%，
+    # 容器关系是 94.7%+，中间有一大段空隙）
+    _mut("⑩ 两个对象部分重叠",
+         lambda s: (s["layout"][0].__setitem__("box", [100.0, 400.0, 200.0, 80.0]),
+                    s["layout"][1].__setitem__("box", [140.0, 400.0, 200.0, 80.0]))),
+
     _mut("⑩ 对象画到画布外",
          lambda s: s["layout"][0].__setitem__(
              "box", [s["source"]["canvas"][0] + 50.0, 0.0, 10.0, 10.0])),
