@@ -269,14 +269,20 @@ def build_pptx(spec, path):
             sh = sl.shapes.add_shape(MSO_SHAPE.RECTANGLE,
                                      IN(b[0]), IN(b[1]), IN(b[2]), IN(b[3]))
             set_prst(sh, it.get("prst") or KIND_PRST.get(kind, "rect"))
-            fill = it.get("fill")
-            if fill:
-                sh.fill.solid()
-                sh.fill.fore_color.rgb = RGBColor.from_string(fill)
-            else:
-                sh.fill.background()
-            apply_line(sh, it.get("line"))
-            sh.shadow.inherit = False
+
+        # ★ 填充和描边要**对所有 kind** 生效，包括 text。
+        #   实测栽过：原来给 text 单开一个分支、把这两样整个跳过，
+        #   结果 9 个说明标签的浅灰底（F0F0F0）在 PPTX 里全丢了 ——
+        #   而 SVG 那边是无条件画的，于是成了"**两个出口不一致**"：
+        #   SVG 有、PPTX 没有。用户一眼就看出来了。
+        fill = it.get("fill")
+        if fill:
+            sh.fill.solid()
+            sh.fill.fore_color.rgb = RGBColor.from_string(fill)
+        else:
+            sh.fill.background()
+        apply_line(sh, it.get("line"))
+        sh.shadow.inherit = False
         stamp(sh)
 
         if it.get("rot"):

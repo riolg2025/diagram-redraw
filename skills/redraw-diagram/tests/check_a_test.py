@@ -63,6 +63,11 @@ MUTATIONS = [
 
     ("把线的端点反过来",
      lambda prs: _flip_line(shapes_by_name(prs)["s04"])),
+
+    ("改掉一个对象的填充色",
+     lambda prs: _set_fill(shapes_by_name(prs)["s01"], "FF0000")),
+    ("把对象的填充整个去掉",
+     lambda prs: _clear_fill(shapes_by_name(prs)["s01"])),
 ]
 
 
@@ -96,6 +101,16 @@ def _swap_text(a, b):
     tb = b.text_frame.text
     _set_text(a, tb)
     _set_text(b, ta)
+
+
+def _set_fill(sh, hexv):
+    from pptx.dml.color import RGBColor
+    sh.fill.solid()
+    sh.fill.fore_color.rgb = RGBColor.from_string(hexv)
+
+
+def _clear_fill(sh):
+    sh.fill.background()
 
 
 def _flip_line(sh):

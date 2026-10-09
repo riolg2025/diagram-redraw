@@ -84,6 +84,42 @@ def line_pts(sh):
     return [x1, y1], [x2, y2]
 
 
+def _spPr(sh):
+    return next((e for e in sh._element.iter()
+                 if e.tag.rsplit('}', 1)[-1] == 'spPr'), None)
+
+
+def fill_of(sh):
+    """形状的**实填色**（没填 / noFill 都给 None）。"""
+    sp = _spPr(sh)
+    if sp is None:
+        return None
+    for e in sp:
+        tag = e.tag.rsplit('}', 1)[-1]
+        if tag == 'solidFill':
+            c = next((x for x in e.iter()
+                      if x.tag.rsplit('}', 1)[-1] == 'srgbClr'), None)
+            return c.get('val') if c is not None else None
+        if tag == 'noFill':
+            return None
+    return None
+
+
+def line_of(sh):
+    """形状的描边 (颜色, 磅)。没描边给 (None, None)。"""
+    sp = _spPr(sh)
+    if sp is None:
+        return None, None
+    ln = next((e for e in sp if e.tag.rsplit('}', 1)[-1] == 'ln'), None)
+    if ln is None or any(x.tag.rsplit('}', 1)[-1] == 'noFill' for x in ln):
+        return None, None
+    c = next((x for x in ln.iter()
+              if x.tag.rsplit('}', 1)[-1] == 'srgbClr'), None)
+    w = ln.get('w')
+    return (c.get('val') if c is not None else None,
+            (int(w) / 12700.0) if w else None)
+
+
 def close(a, b, tol=BOX_TOL_PX):
     return abs(a - b) <= tol
 
@@ -226,6 +262,31 @@ def main():
                 problems.append((sid, "位置/尺寸不一致：清单 %s  输出 %s"
                                  % ([round(v, 1) for v in wb],
                                     [round(v, 1) for v in gb])))
+
+        # ---- 填充 / 描边 ----
+        # ★ 以前这里**根本不比这两样**。实测栽过：9 个说明标签的浅灰底
+        #   （F0F0F0）在 PPTX 里全丢了 —— 生成脚本给 kind=="text" 单开了一个
+        #   分支，那个分支把填充和描边整个跳过；而 SVG 那边是通用的，所以
+        #   成了"两个出口不一致"。两样都比，这类错才跑不掉。
+        # 搬运项（verbatim）的外观在拷来的 XML 里，清单本来就没有 fill/line
+        # 这两个字段 —— 拿它跟形状比会**全是误报**。它的保真靠"搬"本身。
+        # 搬运项（verbatim）的外观在拷来的 XML 里，清单本来就没有 fill/line
+        # 这两个字段 —— 拿它跟形状比会**全是误报**。它的保真靠"搬"本身。
+        if it["kind"] != "verbatim":
+            wf = (it.get("fill") or "").upper() or None
+            hf = (fill_of(sh) or "").upper() or None
+            if wf != hf:
+                problems.append((sid, "填充不一致：清单 %s  输出 %s" % (wf, hf)))
+            wl = it.get("line") or {}
+            wlc = (wl.get("color") or "").upper() or None
+            hlc, hlw = line_of(sh)
+            hlc = (hlc or "").upper() or None
+            if wlc != hlc:
+                problems.append((sid, "描边颜色不一致：清单 %s  输出 %s" % (wlc, hlc)))
+            elif wlc and wl.get("pt") is not None and hlw is not None:
+                if abs(float(wl["pt"]) - float(hlw)) > 0.05:
+                    problems.append((sid, "描边宽度不一致：清单 %s  输出 %.2f"
+                                     % (wl["pt"], hlw)))
 
         # ---- 预设几何 ----
         if it.get("prst") and it["kind"] not in ("line", "picture", "text"):
