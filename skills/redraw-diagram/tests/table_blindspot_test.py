@@ -83,20 +83,26 @@ def main():
         return 1
     O = json.load(open(out, encoding="utf-8"))
     st = O.get("stats") or {}
-    seen = st.get("shapes", 0) + st.get("unsupported", 0)
-    print("  ① 账对不对得上")
-    print("     观察到的 %d + 记下来的 %d = %d，原件 %d  %s"
-          % (st.get("shapes", 0), st.get("unsupported", 0), seen, real,
-             "✓" if seen == real else "✗ **账对不上**"))
+    cells = [x for x in O.get("shapes") or [] if x.get("table")]
+    tables = [g for g in O.get("groups") or [] if g.get("kind") == "table"]
+    # ★ 表格**展开成格子**了，所以"账"不能按 shapes 直接数 ——
+    #   一个表格算**一个**原件对象，它的格子是**内容**不是新对象。
+    seen = (st.get("shapes", 0) - len(cells)) + len(tables) + st.get("unsupported", 0)
+    print("  ① 每个原件对象都被交代了吗")
+    print("     非表格形状 %d + 表格 %d + 记下来的 %d = %d，原件 %d  %s"
+          % (st.get("shapes", 0) - len(cells), len(tables), st.get("unsupported", 0),
+             seen, real, "✓" if seen == real else "✗ **有对象无声无息地没了**"))
     if seen != real:
         ok = False
-    print("     unsupported 明细：%s"
-          % [(u.get("name"), u.get("what")) for u in O.get("unsupported") or []])
-    if not any("表格" in str(u.get("what", "")) for u in O.get("unsupported") or []):
-        print("     ✗ 表格没被记下来（又被静默吞了）")
-        ok = False
+    # ★ 表格现在**读得出来了** —— 所以它既不该在 unsupported 里，
+    #   也不该被静默吞掉：它必须**变成格子**出现在 shapes 里。
+    if cells:
+        print("     ✓ 表格读成了 %d 个格子（不是记成「不支持」，更不是吞掉）" % len(cells))
+    elif any("表格" in str(u.get("what", "")) for u in O.get("unsupported") or []):
+        print("     ⚠ 表格仍被记成「不支持」——账是对的，但能力还没接上")
     else:
-        print("     ✓ 表格如实记进了 unsupported，**不再说「没有」**")
+        print("     ✗ 表格既没读出来、也没记下来（**又被静默吞了**）")
+        ok = False
 
     # ── ② Check B：原件那侧要读得到表格文字 ────────────────────────
     print()

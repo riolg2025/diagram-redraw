@@ -652,7 +652,63 @@ def main():
 
             # ---- 表格 / 自由曲线：画不出来，如实记 ----
             if str(sh.shape_type).startswith("TABLE"):
-                unsupported.append(dict(base, what="表格", why="不支持"))
+                # ★ 表格不是"画不出来"，是**另一种信息模型**：
+                #   它 = 一个容器 + 一格一格（= membership）。
+                #   原件里这几张表是**当版式容器用**的（一个表 = 一条带，一格 = 一个块），
+                #   所以按「容器 + 成员」读，正好和②的 membership 对上。
+                tbl = sh.table
+                # ★ 用**比例**换算，不引常量：表格的框就是所有行/列之和
+                tot_w = sum(c.width for c in tbl.columns) or 1
+                tot_h = sum(r.height for r in tbl.rows) or 1
+                rowh = [box[3] * r.height / tot_h for r in tbl.rows]
+                colw = [box[2] * c.width / tot_w for c in tbl.columns]
+                members = []
+                covered = set()        # ★ 自己记"被合并覆盖的格子"，不靠库里那两个属性
+                                       #   （实测它们不可靠：213 有 5 个有字的格，只读到 1 个 ✗）
+                for ri, r in enumerate(tbl.rows):
+                    for ci, c in enumerate(r.cells):
+                        if (ri, ci) in covered:
+                            continue
+                        cid = "%s_c%d_%d" % (oid, ri, ci)
+                        csh, csw = c.span_height, c.span_width
+                        for dr in range(csh):
+                            for dc in range(csw):
+                                if (dr, dc) != (0, 0):
+                                    covered.add((ri + dr, ci + dc))
+                        cb = [box[0] + sum(colw[:ci]), box[1] + sum(rowh[:ri]),
+                              sum(colw[ci:ci + csw]), sum(rowh[ri:ri + csh])]
+                        # 单元格底色：走 python-pptx 的公开接口
+                        # （_Cell 没有 _element，只有 _tc；别去碰私有字段 ✗）
+                        try:
+                            _f = c.fill
+                            cf = (str(_f.fore_color.rgb)
+                                  if _f.type is not None and int(_f.type) == 1 else None)
+                        except Exception:
+                            cf = None
+                        members.append(cid)
+                        shapes.append({
+                            "oid": cid, "shape_id": None,
+                            "kind": "shape",            # 对下游来说它就是一个形状
+                            "name": "表格%s-第%d行第%d列" % (sid, ri + 1, ci + 1),
+                            "type": "TableCell", "prst": "rect",
+                            "box": [round(v, 1) for v in cb], "rot": 0,
+                            "flipH": False, "flipV": False,
+                            "group_path": group_path + [oid], "z": z,
+                            "table": oid, "row": ri, "col": ci,
+                            "span": [csh, csw],
+                            "fill": cf,
+                            "text": c.text.strip(),
+                            "evidence": ["p:graphicFrame#%s/a:tc" % sid],
+                        })
+                        z += 1
+                groups.append({
+                    "oid": oid, "shape_id": sid, "name": cnv_name(el),
+                    "box": [round(v, 1) for v in box], "rot": 0,
+                    "kind": "table",
+                    "rows": len(tbl.rows), "cols": len(tbl.columns),
+                    "members": members,
+                    "evidence": ["p:graphicFrame#%s" % sid],
+                })
                 continue
             if str(sh.shape_type).startswith("FREEFORM"):
                 # ★ 表达不了 ≠ 没法要。
