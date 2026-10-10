@@ -259,10 +259,15 @@ def main():
         for i in range(len(ks)):
             for j in range(i + 1, len(ks)):
                 A, B = o_groups[ks[i]], o_groups[ks[j]]
+                # ★ 容器套容器是**正常**的（表格本来就装在带里）✗
+                #   只有"**部分**重叠、互不包含"才算失控 ✗
+                #   （主线 spec_check 早就学过这一条，这里照它）
+                if _inside(A, B) or _inside(B, A):
+                    continue
                 ix = max(0, min(A[0] + A[2], B[0] + B[2]) - max(A[0], B[0]))
                 iy = max(0, min(A[1] + A[3], B[1] + B[3]) - max(A[1], B[1]))
                 if ix * iy > 1.0:
-                    print("   ✗ %s 和 %s 重叠 %.0f×%.0f px" % (ks[i], ks[j], ix, iy))
+                    print("   ✗ %s 和 %s **部分**重叠 %.0f×%.0f px" % (ks[i], ks[j], ix, iy))
                     ov += 1
         print("   %d 个分区，重叠 %d 处%s" % (len(ks), ov, " ✓" if not ov else ""))
         bad += ov
