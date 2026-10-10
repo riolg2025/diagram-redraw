@@ -109,6 +109,33 @@ def main():
             '</svg>')
     allok &= case("C3 没有线（只报告，不算失败）", none, False, "工具不判")
 
+    # ★ 「装在框里」也算表达 —— 而且是**机械可查**的，不该丢给人
+    inside = (SVG_HEAD + boxes() + texts() +
+              '<g id="BOX" data-pptx-bounds="140 10 130 200">'
+              '<rect id="N2b" x="150" y="30" width="90" height="30"/>'
+              '<text x="195" y="50">丁</text></g>'
+              '<line id="C1" x1="80" y1="60" x2="200" y2="140"/>' +
+              '</svg>')
+    spec_in = json.loads(json.dumps(SPEC))
+    # ★ 关系是「N2b 装在 BOX 里」—— 真的嵌套，不是并排
+    spec_in["relations"] = [{"id": "C1", "from": "N1", "to": "N2"},
+                            {"id": "C3", "from": "N2b", "to": "BOX"}]
+    spec_in["entities"].append({"id": "N2b", "role": ["shape"], "text": "丁"})
+    spec_in["entities"].append({"id": "BOX", "role": ["group"]})
+    with tempfile.NamedTemporaryFile("w", suffix=".svg", delete=False, encoding="utf-8") as f:
+        f.write(inside); sp_svg = f.name
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as f:
+        json.dump(spec_in, f, ensure_ascii=False); sp_spec = f.name
+    try:
+        import subprocess as _sp
+        r = _sp.run([PY, REC, sp_svg, "--spec", sp_spec], capture_output=True, text=True)
+        ok = r.returncode == 0 and "包含" in r.stdout
+        print("  %s %-38s %s" % ("✓" if ok else "✗", "「装在框里」判为表达",
+                                 "通过 ✓ 认出包含" if ok else "**没认出来** ✗"))
+        allok &= ok
+    finally:
+        os.unlink(sp_svg); os.unlink(sp_spec)
+
     # ★ 文字缺
     miss = (SVG_HEAD + boxes() + texts().replace(">丙<", "><") +
             '<line id="C1" x1="80" y1="60" x2="200" y2="140"/>' +

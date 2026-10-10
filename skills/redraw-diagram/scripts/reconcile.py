@@ -133,6 +133,13 @@ def _gap(a, b):
     return math.hypot(dx, dy)
 
 
+def _inside(b, outer):
+    """b 是不是**装进**了 outer 里（bbox 包含）。"""
+    return (b[0] >= outer[0] - 1 and b[1] >= outer[1] - 1 and
+            b[0] + b[2] <= outer[0] + outer[2] + 1 and
+            b[1] + b[3] <= outer[1] + outer[3] + 1)
+
+
 def _union(bs):
     x0 = min(b[0] for b in bs); y0 = min(b[1] for b in bs)
     x1 = max(b[0] + b[2] for b in bs); y1 = max(b[1] + b[3] for b in bs)
@@ -188,7 +195,7 @@ def main():
             bs = o_boxes.get(i) or o_boxes.get("ct-" + i) or []
         if bs:
             anchors[i] = _union(bs)
-    n_line = n_bad = 0
+    n_line = n_bad = n_contain = 0
     review = []
     for rid, r in REL.items():
         A, B = r.get("from"), r.get("to")
@@ -209,7 +216,15 @@ def main():
                       % (rid, A, B, hitA, hitB))
                 n_bad += 1
             continue
-        # ★ 没有线 → **工具不判"邻近算不算说得清"** ✗
+        # ★ 没有线 → **先看是不是"装在框里"**。
+        #   「A 在 B 里面」是**机械可查的事实** ✓ 不是判断 ✓ ——
+        #   所以它该由工具直接判，不该丢给人 ✗
+        #   （`membership` 的标准表达就是包含：「格 ∈ 表」「表 ∈ 带」都不需要画线）
+        if _inside(an, bn) or _inside(bn, an):
+            n_contain += 1
+            continue
+
+        # ★ 既没有线、又没装在框里 → **工具不判"邻近算不算说得清"** ✗
         #   那是个判断，得人（或另一双眼睛）看。这里只把**证据**摆出来。
         gAB = _gap(an, bn)
         mid_a = (an[0] + an[2] / 2, an[1] + an[3] / 2)
@@ -221,6 +236,8 @@ def main():
             ali.append("垂直中心对齐")
         review.append((rid, A, B, gAB, "、".join(ali) or "**没有对齐**"))
     print("   有线且两端都贴上        %d 条" % n_line)
+    if n_contain:
+        print("   装在一个框里（包含）     %d 条  ← **机械可查** ✓" % n_contain)
     if review:
         print("   没有线（**工具不判，需要人/另一双眼睛看**）%d 条：" % len(review))
         for rid, A, B, g, ali in review:
