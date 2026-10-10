@@ -30,9 +30,15 @@ class Xfrm:
 
     def __init__(self, el, ns):
         self.ns = ns
+        # ★ 按**本地名**找 xfrm，不写死命名空间：
+        #   · 普通形状/组 → <a:xfrm>（在 spPr 里）
+        #   · **表格/图表（p:graphicFrame）→ <p:xfrm>** ✗
+        #   写死 a:xfrm 的话，表格会在调用方那一步被**静默跳过** ✗
+        #   （同一条教训代码里已记过：<p:spPr> 是 presentationml 不是 drawingml）
+        #   ⚠️ 子元素 off/ext **仍然是 a:** 的，所以下面还是用 ns 找。
         x = None
         for e in el.iter():
-            if e.tag == ns + 'xfrm':
+            if e.tag.rsplit('}', 1)[-1] == 'xfrm':
                 x = e
                 break
         if x is None:

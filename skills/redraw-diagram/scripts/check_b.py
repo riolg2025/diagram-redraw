@@ -89,6 +89,21 @@ def extract_pptx_text(path, slide_no, region=None):
     slides = [prs.slides[slide_no - 1]] if slide_no else list(prs.slides)
     for sl in slides:
         for sh, box in walk_abs(sl.shapes):
+            # ★ 表格/图表**没有 text_frame** ✗ —— 原来这里一句 continue 就把它们
+            #   全跳过了，于是"表格拼出来的图"在原件那一侧**等于没有文字**：
+            #   观察工具漏了（已修：记进 unsupported），Check B 也漏了 —— 两头都瞎 ✗
+            #   实测第 1 页：32 个形状里有 **10 个表格、35 个非空单元格**。
+            if getattr(sh, "has_table", False) and sh.has_table:
+                if region:
+                    cx, cy = box[0] + box[2] / 2, box[1] + box[3] / 2
+                    if not (region[0] <= cx <= region[0] + region[2]
+                            and region[1] <= cy <= region[1] + region[3]):
+                        continue
+                cells = [c.text for r in sh.table.rows for c in r.cells]
+                t = "\n".join(x for x in cells if norm(x))
+                if norm(t):
+                    blocks.append(t)
+                continue
             if not sh.has_text_frame:
                 continue
             if region:

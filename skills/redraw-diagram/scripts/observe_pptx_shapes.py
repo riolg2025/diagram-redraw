@@ -580,6 +580,15 @@ def main():
             el = sh._element
             xf = Xfrm(el, A)
             if not xf.ok:
+                # ★ 不许静默跳过 ✗ —— 以前这里直接 continue，
+                #   于是表格（p:xfrm）被悄悄扔掉，而 stats 还报 unsupported: 0 ✗
+                #   这正是 R3.5 那类病：「我不知道」和「没有」没分开。
+                unsupported.append({
+                    "oid": oid, "shape_id": sid, "name": cnv_name(el),
+                    "type": str(sh.shape_type), "z": z,
+                    "what": "找不到位置/尺寸（xfrm）", "why": "读不出来，已如实记，不猜",
+                })
+                z += 1
                 continue
             box = ctx.box_px(xf)
             sid = cnv_id(el)
